@@ -10,19 +10,82 @@ import re
 
 from facturx_generator import generate_facturx_xml
 
+
+def load_config(config_path: str = 'resources/config/ma-conf.txt') -> dict:
+    """Charge la configuration depuis un fichier texte."""
+    config = {}
+    path = Path(config_path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"Fichier de configuration introuvable: {config_path}")
+
+    with open(path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' in line:
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                # Conversion des booléens
+                if value.lower() == 'true':
+                    value = True
+                elif value.lower() == 'false':
+                    value = False
+                config[key] = value
+
+    return config
+
+
+def parse_address(address: str) -> dict:
+    """Parse une adresse au format 'rue, code_postal ville'."""
+    result = {'line': '', 'postal_code': '', 'city': ''}
+
+    if not address:
+        return result
+
+    if ',' in address:
+        parts = address.split(',', 1)
+        result['line'] = parts[0].strip()
+        remainder = parts[1].strip()
+        # Extraire code postal et ville
+        match = re.match(r'^(\d{5})\s+(.+)$', remainder)
+        if match:
+            result['postal_code'] = match.group(1)
+            result['city'] = match.group(2)
+        else:
+            result['city'] = remainder
+    else:
+        result['line'] = address
+
+    return result
+
+
+# Charger la configuration
+CONFIG = load_config()
+
+# Parser l'adresse de l'émetteur
+address_parts = parse_address(CONFIG.get('address', ''))
+
+# Configuration de l'émetteur depuis le fichier de config
+EMITTER = {
+    'name': CONFIG.get('name', ''),
+    'address': address_parts['line'],
+    'postal_code': address_parts['postal_code'],
+    'city': address_parts['city'],
+    'country_code': 'FR',
+    'siren': CONFIG.get('siren', ''),
+    'siret': CONFIG.get('siret', ''),
+    'vat_number': CONFIG.get('num_tva', ''),
+    'bic': CONFIG.get('bic', ''),
+}
+
+# Chemin du logo depuis la config
+LOGO_PATH = CONFIG.get('logo', './resources/logos/sntpk-logo.jpeg')
+
 app = Flask(__name__, template_folder='resources/templates', static_folder='resources')
 app.secret_key = 'facturx-secret-key-change-in-production'
-
-# Configuration de l'émetteur (à personnaliser)
-EMITTER = {
-    'name': 'Mon Entreprise SARL',
-    'address': '12 rue de la Paix',
-    'postal_code': '75001',
-    'city': 'Paris',
-    'country_code': 'FR',
-    'siret': '12345678900012',
-    'vat_number': 'FR12345678901',
-}
 
 TYPE_LABELS = {
     '380': 'Facture',
@@ -136,12 +199,23 @@ def format_date_display(date_str: str) -> str:
         return date_str
 
 
+def get_logo_url() -> str:
+    """Retourne l'URL du logo pour les templates."""
+    logo = LOGO_PATH
+    # Si le chemin commence par ./resources, le convertir en URL relative
+    if logo.startswith('./resources/'):
+        return '/' + logo[len('./resources/'):]
+    elif logo.startswith('resources/'):
+        return '/' + logo[len('resources/'):]
+    return logo
+
+
 @app.route('/')
 def index():
     """Affiche le formulaire step1."""
     return render_template(
         'invoice_step1.html',
-        logo_path='/logos/sntpk-logo.jpeg',
+        logo_path=get_logo_url(),
         emitter=EMITTER,
     )
 
@@ -184,7 +258,7 @@ def show_step2():
     if not invoice_data:
         return render_template(
             'invoice_step1.html',
-            logo_path='/logos/sntpk-logo.jpeg',
+            logo_path=get_logo_url(),
             emitter=EMITTER,
         )
 
@@ -197,7 +271,7 @@ def show_step2():
 
     return render_template(
         'invoice_step2.html',
-        logo_path='/logos/sntpk-logo.jpeg',
+        logo_path=get_logo_url(),
         emitter=EMITTER,
         invoice=invoice,
     )
