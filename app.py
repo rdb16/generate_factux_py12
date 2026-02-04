@@ -2,6 +2,8 @@
 Application Flask pour générer des factures au format Factur-X.
 """
 
+import os
+import sys
 from datetime import datetime
 from decimal import Decimal
 from flask import Flask, render_template, request, jsonify, session, Response
@@ -9,6 +11,9 @@ from pathlib import Path
 import re
 
 from facturx_generator import generate_facturx_xml
+
+# Variable globale pour la connexion DB (si PostgreSQL activé)
+db_connection = None
 
 
 def load_config(config_path: str = 'resources/config/ma-conf.txt') -> dict:
@@ -62,8 +67,186 @@ def parse_address(address: str) -> dict:
     return result
 
 
+def validate_emitter_config(config: dict) -> list[str]:
+    """Valide les champs obligatoires de l'émetteur."""
+    errors = []
+
+    # Validation SIRET (14 chiffres)
+    siret = config.get('siret', '')
+    if not siret:
+        errors.append("SIRET de l'émetteur non renseigné dans la configuration")
+    elif not re.match(r'^\d{14}$', siret):
+        errors.append(f"SIRET de l'émetteur invalide: '{siret}' (doit contenir 14 chiffres)")
+
+    # Validation SIREN (9 chiffres)
+    siren = config.get('siren', '')
+    if not siren:
+        errors.append("SIREN de l'émetteur non renseigné dans la configuration")
+    elif not re.match(r'^\d{9}$', siren):
+        errors.append(f"SIREN de l'émetteur invalide: '{siren}' (doit contenir 9 chiffres)")
+
+    # Validation cohérence SIREN/SIRET
+    if siret and siren and not siret.startswith(siren):
+        errors.append(f"Incohérence SIREN/SIRET: le SIRET '{siret}' devrait commencer par le SIREN '{siren}'")
+
+    # Validation BIC (8 ou 11 caractères alphanumériques)
+    bic = config.get('bic', '')
+    if bic and not re.match(r'^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$', bic.upper()):
+        errors.append(f"BIC invalide: '{bic}' (format attendu: 8 ou 11 caractères)")
+
+    # Validation numéro TVA intracommunautaire (format FR + 11 caractères)
+    num_tva = config.get('num_tva', '')
+    if num_tva and not re.match(r'^[A-Z]{2}[A-Z0-9]{2,13}$', num_tva.upper()):
+        errors.append(f"Numéro TVA invalide: '{num_tva}' (format attendu: code pays + identifiant)")
+
+    # Validation nom obligatoire
+    if not config.get('name', '').strip():
+        errors.append("Nom de l'émetteur non renseigné dans la configuration")
+
+    return errors
+
+
+def get_logo_path(config: dict) -> str:
+    """Retourne le chemin du logo, avec fallback sur underwork.jpeg."""
+    logo = config.get('logo', '').strip()
+
+    if not logo:
+        # Logo par défaut
+        return './resources/logos/underwork.jpeg'
+
+    # Vérifier que le fichier existe
+    logo_path = Path(logo)
+    if not logo_path.exists():
+        print(f"[WARNING] Logo introuvable: {logo}, utilisation du logo par défaut")
+        return './resources/logos/underwork.jpeg'
+
+    return logo
+
+
+def load_env_file() -> dict:
+    """Charge les variables d'environnement depuis .env ou .env.local."""
+    env_vars = {}
+
+    # Chercher .env.local en priorité, sinon .env
+    env_file = None
+    for filename in ['.env.local', '.env']:
+        path = Path(filename)
+        if path.exists():
+            env_file = path
+            break
+
+    if env_file is None:
+        return env_vars
+
+    with open(env_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' in line:
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                env_vars[key] = value
+                os.environ[key] = value
+
+    return env_vars
+
+
+def check_database_connection(config: dict) -> bool:
+    """Vérifie la connexion à la base de données PostgreSQL."""
+    global db_connection
+
+    try:
+        import psycopg2
+    except ImportError:
+        print("[ERROR] Le module psycopg2 n'est pas installé. Exécutez: uv add psycopg2-binary")
+        return False
+
+    # Récupérer les paramètres de connexion depuis les variables d'environnement
+    db_host = os.environ.get('DB_HOST', 'localhost')
+    db_port = os.environ.get('DB_PORT', '5432')
+    db_name = os.environ.get('DB_NAME', 'facturx')
+    db_user = os.environ.get('DB_USER', 'postgres')
+    db_password = os.environ.get('DB_PASSWORD', '')
+
+    try:
+        db_connection = psycopg2.connect(
+            host=db_host,
+            port=db_port,
+            dbname=db_name,
+            user=db_user,
+            password=db_password
+        )
+        print(f"[OK] Connexion à PostgreSQL établie ({db_host}:{db_port}/{db_name})")
+        return True
+    except psycopg2.Error as e:
+        print(f"[ERROR] Impossible de se connecter à PostgreSQL: {e}")
+        return False
+
+
+def ensure_storage_directories(config: dict) -> None:
+    """Crée les répertoires de stockage s'ils n'existent pas."""
+    xml_storage = config.get('xml_storage', './data/factures-xml')
+    pdf_storage = config.get('pdf_storage', './data/factures-pdf')
+
+    for storage_path in [xml_storage, pdf_storage]:
+        path = Path(storage_path)
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+            print(f"[OK] Répertoire créé: {storage_path}")
+
+
+def validate_startup_config() -> None:
+    """Valide la configuration au démarrage de l'application."""
+    print("=" * 60)
+    print("Validation de la configuration...")
+    print("=" * 60)
+
+    errors = []
+
+    # 1. Valider les champs émetteur
+    emitter_errors = validate_emitter_config(CONFIG)
+    errors.extend(emitter_errors)
+
+    # 2. Vérifier le fichier .env si PostgreSQL activé
+    if CONFIG.get('is_db_pg') is True:
+        env_file_exists = Path('.env').exists() or Path('.env.local').exists()
+        if not env_file_exists:
+            errors.append("is_db_pg=True mais aucun fichier .env ou .env.local trouvé")
+        else:
+            # Charger les variables d'environnement
+            load_env_file()
+
+            # 3. Vérifier la connexion à la base
+            if not check_database_connection(CONFIG):
+                errors.append("Impossible d'établir la connexion à PostgreSQL")
+
+    # 4. Créer les répertoires de stockage
+    ensure_storage_directories(CONFIG)
+
+    # Afficher les résultats
+    if errors:
+        print("\n[ERREURS DE CONFIGURATION]")
+        for error in errors:
+            print(f"  - {error}")
+        print("\nL'application ne peut pas démarrer. Corrigez les erreurs ci-dessus.")
+        sys.exit(1)
+    else:
+        print("\n[OK] Configuration validée avec succès")
+        print(f"  - Émetteur: {CONFIG.get('name')}")
+        print(f"  - SIRET: {CONFIG.get('siret')}")
+        print(f"  - Logo: {LOGO_PATH}")
+        print(f"  - PostgreSQL: {'Activé' if CONFIG.get('is_db_pg') else 'Désactivé'}")
+        print(f"  - Stockage XML: {CONFIG.get('xml_storage', './data/factures-xml')}")
+    print("=" * 60 + "\n")
+
+
 # Charger la configuration
 CONFIG = load_config()
+
+# Définir le chemin du logo (avec fallback)
+LOGO_PATH = get_logo_path(CONFIG)
 
 # Parser l'adresse de l'émetteur
 address_parts = parse_address(CONFIG.get('address', ''))
@@ -80,9 +263,6 @@ EMITTER = {
     'vat_number': CONFIG.get('num_tva', ''),
     'bic': CONFIG.get('bic', ''),
 }
-
-# Chemin du logo depuis la config
-LOGO_PATH = CONFIG.get('logo', './resources/logos/sntpk-logo.jpeg')
 
 app = Flask(__name__, template_folder='resources/templates', static_folder='resources')
 app.secret_key = 'facturx-secret-key-change-in-production'
@@ -277,6 +457,22 @@ def show_step2():
     )
 
 
+def save_xml_to_storage(xml_content: str, invoice_number: str) -> str:
+    """Sauvegarde le XML dans le répertoire de stockage."""
+    xml_storage = CONFIG.get('xml_storage', './data/factures-xml')
+
+    # Nettoyer le numéro de facture pour le nom de fichier
+    safe_number = re.sub(r'[^\w\-]', '_', invoice_number)
+    filename = f"facturx-{safe_number}.xml"
+    filepath = Path(xml_storage) / filename
+
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(xml_content)
+
+    print(f"[OK] XML sauvegardé: {filepath}")
+    return str(filepath)
+
+
 @app.route('/invoice', methods=['POST'])
 def generate_invoice():
     """Génère le fichier XML Factur-X."""
@@ -304,6 +500,9 @@ def generate_invoice():
     # Générer le XML Factur-X
     xml_content = generate_facturx_xml(full_data)
 
+    # Sauvegarder le XML dans le répertoire de stockage
+    save_xml_to_storage(xml_content, invoice_data['invoice_number'])
+
     # Retourner le XML en téléchargement
     filename = f"facturx-{invoice_data['invoice_number']}.xml"
 
@@ -317,4 +516,6 @@ def generate_invoice():
 
 
 if __name__ == '__main__':
+    # Valider la configuration au démarrage
+    validate_startup_config()
     app.run(debug=True, port=5000)
