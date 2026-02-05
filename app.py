@@ -524,9 +524,10 @@ def generate_invoice():
     # 3. Combiner le PDF et le XML avec factur-x
     try:
         facturx_pdf_bytes = generate_from_binary(
-            pdf_invoice=pdf_bytes,
-            facturx_xml=xml_content.encode('utf-8'),
-            facturx_level='basic',
+            pdf_file=pdf_bytes,
+            xml=xml_content.encode('utf-8'),
+            flavor='factur-x',
+            level='basic',
             check_xsd=True,
             pdf_metadata={
                 'author': EMITTER['name'],

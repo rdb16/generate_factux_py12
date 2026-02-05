@@ -243,12 +243,10 @@ def generate_facturx_xml(data: dict) -> str:
     seller_siret.set('schemeID', '0002')  # SIRET
     seller_siret.text = emitter['siret']
 
-    # Adresse du vendeur
+    # Adresse du vendeur (ordre important pour validation XSD: LineOne, CityName, CountryID)
     seller_addr = ET.SubElement(seller, _qname('ram', 'PostalTradeAddress'))
     seller_line = ET.SubElement(seller_addr, _qname('ram', 'LineOne'))
     seller_line.text = emitter['address']
-    seller_postcode = ET.SubElement(seller_addr, _qname('ram', 'PostcodeCode'))
-    seller_postcode.text = emitter['postal_code']
     seller_city = ET.SubElement(seller_addr, _qname('ram', 'CityName'))
     seller_city.text = emitter['city']
     seller_country = ET.SubElement(seller_addr, _qname('ram', 'CountryID'))
