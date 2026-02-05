@@ -418,6 +418,8 @@ def submit_step1():
         'recipient_siret': request.form.get('recipient_siret', ''),
         'recipient_vat_number': request.form.get('recipient_vat_number', ''),
         'recipient_address': request.form.get('recipient_address', ''),
+        'recipient_postal_code': request.form.get('recipient_postal_code', ''),
+        'recipient_city': request.form.get('recipient_city', ''),
         'recipient_country_code': request.form.get('recipient_country_code', 'FR'),
     }
 

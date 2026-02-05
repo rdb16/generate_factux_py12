@@ -270,11 +270,21 @@ def generate_facturx_xml(data: dict) -> str:
     buyer_siret.set('schemeID', '0002')
     buyer_siret.text = invoice['recipient_siret']
 
-    # Adresse de l'acheteur
-    if invoice.get('recipient_address'):
+    # Adresse de l'acheteur (profil BASIC: LineOne, CityName, CountryID uniquement)
+    if invoice.get('recipient_address') or invoice.get('recipient_city'):
         buyer_addr = ET.SubElement(buyer, _qname('ram', 'PostalTradeAddress'))
-        buyer_line = ET.SubElement(buyer_addr, _qname('ram', 'LineOne'))
-        buyer_line.text = invoice['recipient_address']
+
+        # LineOne (adresse)
+        if invoice.get('recipient_address'):
+            buyer_line = ET.SubElement(buyer_addr, _qname('ram', 'LineOne'))
+            buyer_line.text = invoice['recipient_address']
+
+        # CityName (ville)
+        if invoice.get('recipient_city'):
+            buyer_city = ET.SubElement(buyer_addr, _qname('ram', 'CityName'))
+            buyer_city.text = invoice['recipient_city']
+
+        # CountryID (pays)
         buyer_country = ET.SubElement(buyer_addr, _qname('ram', 'CountryID'))
         buyer_country.text = invoice['recipient_country_code']
 

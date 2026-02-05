@@ -1,0 +1,606 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Nouvelle facture - Informations</title>
+        <meta charset="UTF-8" />
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
+                max-width: 700px;
+                margin: 0 auto;
+                padding: 40px 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+            }
+            .container {
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                overflow: hidden;
+            }
+            .header {
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                color: white;
+                padding: 30px;
+                display: flex;
+                align-items: center;
+                gap: 20px;
+            }
+            .header-logo {
+                width: 60px;
+                height: 60px;
+                object-fit: contain;
+                border-radius: 8px;
+                background: white;
+                padding: 4px;
+            }
+            .header-text h1 {
+                margin: 0 0 10px 0;
+                font-size: 24px;
+                font-weight: 600;
+            }
+            .header-text .emitter {
+                opacity: 0.8;
+                font-size: 14px;
+            }
+            .steps {
+                display: flex;
+                justify-content: center;
+                padding: 20px 30px;
+                background: #f8fafc;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .step {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 0 20px;
+                color: #a0aec0;
+                font-size: 14px;
+            }
+            .step.active {
+                color: #667eea;
+                font-weight: 600;
+            }
+            .step .number {
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                background: #e2e8f0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            .step.active .number {
+                background: #667eea;
+                color: white;
+            }
+            .step-divider {
+                width: 40px;
+                height: 2px;
+                background: #e2e8f0;
+                margin: 0 10px;
+            }
+            form {
+                padding: 30px;
+            }
+            .section {
+                margin-bottom: 30px;
+            }
+            .section-title {
+                font-size: 15px;
+                font-weight: 600;
+                color: #1a1a2e;
+                margin-bottom: 20px;
+                padding-bottom: 10px;
+                border-bottom: 2px solid #667eea;
+            }
+            .field-row {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 16px;
+                margin-bottom: 16px;
+            }
+            .field-group {
+                display: flex;
+                flex-direction: column;
+            }
+            .field-group.full-width {
+                grid-column: 1 / -1;
+            }
+            .field-group label {
+                font-size: 13px;
+                font-weight: 500;
+                color: #4a5568;
+                margin-bottom: 6px;
+            }
+            .field-group label .required {
+                color: #e53e3e;
+                margin-left: 2px;
+            }
+            .field-group label .optional {
+                color: #a0aec0;
+                font-weight: 400;
+                font-size: 11px;
+                margin-left: 4px;
+            }
+            .field-group input,
+            .field-group select {
+                padding: 11px 14px;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                font-size: 14px;
+                transition: all 0.2s;
+                background: #f8fafc;
+            }
+            .field-group input:hover,
+            .field-group select:hover {
+                border-color: #cbd5e0;
+            }
+            .field-group input:focus,
+            .field-group select:focus {
+                outline: none;
+                border-color: #667eea;
+                background: white;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }
+            .field-group input.error,
+            .field-group select.error {
+                border-color: #e53e3e;
+                background-color: #fff5f5;
+            }
+            .field-error {
+                color: #e53e3e;
+                font-size: 12px;
+                margin-top: 4px;
+            }
+            .btn {
+                padding: 14px 28px;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 15px;
+                font-weight: 500;
+                transition: all 0.2s;
+            }
+            .btn-primary {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                width: 100%;
+            }
+            .btn-primary:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            }
+            .form-actions {
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #e2e8f0;
+            }
+            .errors-container {
+                background: #fff5f5;
+                border: 1px solid #feb2b2;
+                border-left: 4px solid #e53e3e;
+                color: #c53030;
+                padding: 16px 20px;
+                margin: 0 30px 20px 30px;
+                border-radius: 8px;
+                display: none;
+            }
+            .errors-container h4 {
+                margin: 0 0 10px 0;
+                font-size: 14px;
+            }
+            .errors-container ul {
+                margin: 0;
+                padding-left: 20px;
+                font-size: 13px;
+            }
+
+            @media (max-width: 600px) {
+                body {
+                    padding: 20px 10px;
+                }
+                .field-row {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <img src="{{ logo_path }}" alt="Logo" class="header-logo" />
+                <div class="header-text">
+                    <h1>Nouvelle facture</h1>
+                    <div class="emitter">
+                        {{ emitter.name }} - SIRET : {{ emitter.siret }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="steps">
+                <div class="step active">
+                    <span class="number">1</span>
+                    Informations
+                </div>
+                <div class="step-divider"></div>
+                <div class="step">
+                    <span class="number">2</span>
+                    Lignes
+                </div>
+            </div>
+
+            <div id="errorsContainer" class="errors-container">
+                <h4>Veuillez corriger les erreurs suivantes</h4>
+                <ul id="errorsList"></ul>
+            </div>
+
+            <form id="invoiceForm">
+                <div class="section">
+                    <div class="section-title">Informations de la facture</div>
+
+                    <div class="field-row">
+                        <div class="field-group">
+                            <label for="invoice_number"
+                                >Numero de facture<span class="required"
+                                    >*</span
+                                ></label
+                            >
+                            <input
+                                type="text"
+                                name="invoice_number"
+                                id="invoice_number"
+                                placeholder="FAC-2024-0001"
+                                required
+                            />
+                            <div
+                                class="field-error"
+                                data-field="invoice_number"
+                            ></div>
+                        </div>
+                        <div class="field-group">
+                            <label for="type_code"
+                                >Type de document<span class="required"
+                                    >*</span
+                                ></label
+                            >
+                            <select name="type_code" id="type_code" required>
+                                <option value="380" selected>Facture</option>
+                                <option value="381">Avoir</option>
+                                <option value="384">Rectificative</option>
+                                <option value="389">Acompte</option>
+                            </select>
+                            <div
+                                class="field-error"
+                                data-field="type_code"
+                            ></div>
+                        </div>
+                        <div class="field-group">
+                            <label for="currency_code"
+                                >Devise<span class="required">*</span></label
+                            >
+                            <select
+                                name="currency_code"
+                                id="currency_code"
+                                required
+                            >
+                                <option value="EUR" selected>EUR - Euro</option>
+                                <option value="GBP">
+                                    GBP - Livre sterling
+                                </option>
+                                <option value="CHF">CHF - Franc suisse</option>
+                                <option value="DKK">
+                                    DKK - Couronne danoise
+                                </option>
+                                <option value="SEK">
+                                    SEK - Couronne suedoise
+                                </option>
+                                <option value="NOK">
+                                    NOK - Couronne norvegienne
+                                </option>
+                                <option value="PLN">
+                                    PLN - Zloty polonais
+                                </option>
+                                <option value="CZK">
+                                    CZK - Couronne tcheque
+                                </option>
+                                <option value="USD">
+                                    USD - Dollar americain
+                                </option>
+                            </select>
+                            <div
+                                class="field-error"
+                                data-field="currency_code"
+                            ></div>
+                        </div>
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field-group">
+                            <label for="issue_date"
+                                >Date d'emission<span class="required"
+                                    >*</span
+                                ></label
+                            >
+                            <input
+                                type="date"
+                                name="issue_date"
+                                id="issue_date"
+                                required
+                            />
+                            <div
+                                class="field-error"
+                                data-field="issue_date"
+                            ></div>
+                        </div>
+                        <div class="field-group">
+                            <label for="due_date"
+                                >Date d'echeance<span class="optional"
+                                    >(optionnel)</span
+                                ></label
+                            >
+                            <input type="date" name="due_date" id="due_date" />
+                            <div
+                                class="field-error"
+                                data-field="due_date"
+                            ></div>
+                        </div>
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field-group">
+                            <label for="buyer_reference"
+                                >Reference acheteur<span class="optional"
+                                    >(optionnel)</span
+                                ></label
+                            >
+                            <input
+                                type="text"
+                                name="buyer_reference"
+                                id="buyer_reference"
+                                placeholder="Service Comptabilite"
+                            />
+                        </div>
+                        <div class="field-group">
+                            <label for="purchase_order_reference"
+                                >Bon de commande<span class="optional"
+                                    >(optionnel)</span
+                                ></label
+                            >
+                            <input
+                                type="text"
+                                name="purchase_order_reference"
+                                id="purchase_order_reference"
+                                placeholder="BC-2024-0042"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="field-group full-width">
+                        <label for="payment_terms"
+                            >Conditions de paiement<span class="optional"
+                                >(optionnel)</span
+                            ></label
+                        >
+                        <input
+                            type="text"
+                            name="payment_terms"
+                            id="payment_terms"
+                            placeholder="Paiement a 30 jours fin de mois"
+                        />
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Client</div>
+
+                    <div class="field-group" style="margin-bottom: 16px">
+                        <label for="recipient_name"
+                            >Raison sociale<span class="required"
+                                >*</span
+                            ></label
+                        >
+                        <input
+                            type="text"
+                            name="recipient_name"
+                            id="recipient_name"
+                            placeholder="Entreprise ABC SARL"
+                            required
+                        />
+                        <div
+                            class="field-error"
+                            data-field="recipient_name"
+                        ></div>
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field-group">
+                            <label for="recipient_siret"
+                                >SIRET<span class="required">*</span></label
+                            >
+                            <input
+                                type="text"
+                                name="recipient_siret"
+                                id="recipient_siret"
+                                placeholder="12345678901234"
+                                required
+                                maxlength="14"
+                            />
+                            <div
+                                class="field-error"
+                                data-field="recipient_siret"
+                            ></div>
+                        </div>
+                        <div class="field-group">
+                            <label for="recipient_vat_number"
+                                >TVA intracommunautaire<span class="optional"
+                                    >(optionnel)</span
+                                ></label
+                            >
+                            <input
+                                type="text"
+                                name="recipient_vat_number"
+                                id="recipient_vat_number"
+                                placeholder="FR12345678901"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="field-group full-width" style="margin-bottom: 16px">
+                        <label for="recipient_address"
+                            >Adresse<span class="optional"
+                                >(optionnel)</span
+                            ></label
+                        >
+                        <input
+                            type="text"
+                            name="recipient_address"
+                            id="recipient_address"
+                            placeholder="10 rue de la Republique"
+                        />
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field-group">
+                            <label for="recipient_postal_code"
+                                >Code postal<span class="optional"
+                                    >(optionnel)</span
+                                ></label
+                            >
+                            <input
+                                type="text"
+                                name="recipient_postal_code"
+                                id="recipient_postal_code"
+                                placeholder="75001"
+                                maxlength="10"
+                            />
+                        </div>
+                        <div class="field-group">
+                            <label for="recipient_city"
+                                >Ville<span class="optional"
+                                    >(optionnel)</span
+                                ></label
+                            >
+                            <input
+                                type="text"
+                                name="recipient_city"
+                                id="recipient_city"
+                                placeholder="Paris"
+                            />
+                        </div>
+                        <div class="field-group">
+                            <label for="recipient_country_code"
+                                >Pays<span class="required">*</span></label
+                            >
+                            <select
+                                name="recipient_country_code"
+                                id="recipient_country_code"
+                                required
+                            >
+                                <option value="FR" selected>France</option>
+                                <option value="BE">Belgique</option>
+                                <option value="CH">Suisse</option>
+                                <option value="DE">Allemagne</option>
+                                <option value="ES">Espagne</option>
+                                <option value="IT">Italie</option>
+                                <option value="LU">Luxembourg</option>
+                                <option value="GB">Royaume-Uni</option>
+                            </select>
+                            <div
+                                class="field-error"
+                                data-field="recipient_country_code"
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        Continuer vers les lignes
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <script>
+            function clearErrors() {
+                document.getElementById("errorsContainer").style.display =
+                    "none";
+                document.getElementById("errorsList").innerHTML = "";
+                document
+                    .querySelectorAll(".error")
+                    .forEach((el) => el.classList.remove("error"));
+                document
+                    .querySelectorAll(".field-error")
+                    .forEach((el) => (el.textContent = ""));
+            }
+
+            function displayErrors(errors) {
+                clearErrors();
+                if (!errors || errors.length === 0) return;
+
+                const container = document.getElementById("errorsContainer");
+                const list = document.getElementById("errorsList");
+
+                errors.forEach((error) => {
+                    const li = document.createElement("li");
+                    li.textContent = error.message;
+                    list.appendChild(li);
+
+                    const input = document.querySelector(
+                        `[name="${error.field}"]`,
+                    );
+                    if (input) {
+                        input.classList.add("error");
+                    }
+                });
+
+                container.style.display = "block";
+                container.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                });
+            }
+
+            document.getElementById("invoiceForm").onsubmit = async (e) => {
+                e.preventDefault();
+                clearErrors();
+
+                const formData = new FormData(e.target);
+
+                try {
+                    const response = await fetch("/invoice/step1", {
+                        method: "POST",
+                        body: formData,
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok || !data.success) {
+                        displayErrors(data.errors);
+                        return;
+                    }
+
+                    // Redirection vers l'etape 2
+                    window.location.href = "/invoice/step2";
+                } catch (error) {
+                    displayErrors([
+                        {
+                            field: "_form",
+                            message:
+                                "Erreur de communication: " + error.message,
+                        },
+                    ]);
+                }
+            };
+        </script>
+    </body>
+</html>

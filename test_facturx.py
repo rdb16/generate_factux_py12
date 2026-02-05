@@ -41,6 +41,8 @@ def test_facturx_generation():
             'recipient_siret': '98765432109876',
             'recipient_vat_number': 'FR98765432109',
             'recipient_address': '456 avenue des Champs',
+            'recipient_postal_code': '75008',
+            'recipient_city': 'Paris',
             'recipient_country_code': 'FR',
         },
         'lines': [
