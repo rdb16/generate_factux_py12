@@ -591,6 +591,19 @@
                                 >{{ invoice.recipient_country_code }}</span
                             >
                         </div>
+                        {% if invoice.recipient_address or invoice.recipient_city %}
+                        <div class="summary-item" style="grid-column: 1 / -1; font-size: 13px;">
+                            <span class="label">Adresse : </span>
+                            <span class="value">
+                                {{ invoice.recipient_address or '' }}
+                                {% if invoice.recipient_postal_code or invoice.recipient_city %}
+                                    {% if invoice.recipient_address %}, {% endif %}
+                                    {{ invoice.recipient_postal_code or '' }}
+                                    {{ invoice.recipient_city or '' }}
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
