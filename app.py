@@ -11,6 +11,8 @@ from pathlib import Path
 import re
 
 from facturx_generator import generate_facturx_xml
+from pdf_generator import generate_invoice_pdf
+from facturx import generate_from_binary
 
 # Variable globale pour la connexion DB (si PostgreSQL activé)
 db_connection = None
@@ -473,9 +475,25 @@ def save_xml_to_storage(xml_content: str, invoice_number: str) -> str:
     return str(filepath)
 
 
+def save_pdf_to_storage(pdf_bytes: bytes, invoice_number: str) -> str:
+    """Sauvegarde le PDF Factur-X dans le répertoire de stockage."""
+    pdf_storage = CONFIG.get('pdf_storage', './data/factures-pdf')
+
+    # Nettoyer le numéro de facture pour le nom de fichier
+    safe_number = re.sub(r'[^\w\-]', '_', invoice_number)
+    filename = f"facturx-{safe_number}.pdf"
+    filepath = Path(pdf_storage) / filename
+
+    with open(filepath, 'wb') as f:
+        f.write(pdf_bytes)
+
+    print(f"[OK] PDF Factur-X sauvegardé: {filepath}")
+    return str(filepath)
+
+
 @app.route('/invoice', methods=['POST'])
 def generate_invoice():
-    """Génère le fichier XML Factur-X."""
+    """Génère le fichier PDF Factur-X complet (PDF + XML embarqué)."""
     invoice_data = session.get('invoice_data')
 
     if not invoice_data:
@@ -497,18 +515,42 @@ def generate_invoice():
         'lines': lines,
     }
 
-    # Générer le XML Factur-X
+    # 1. Générer le PDF de base avec ReportLab
+    pdf_bytes = generate_invoice_pdf(full_data, logo_path=LOGO_PATH)
+
+    # 2. Générer le XML Factur-X
     xml_content = generate_facturx_xml(full_data)
 
-    # Sauvegarder le XML dans le répertoire de stockage
-    save_xml_to_storage(xml_content, invoice_data['invoice_number'])
+    # 3. Combiner le PDF et le XML avec factur-x
+    try:
+        facturx_pdf_bytes = generate_from_binary(
+            pdf_invoice=pdf_bytes,
+            facturx_xml=xml_content.encode('utf-8'),
+            facturx_level='basic',
+            check_xsd=True,
+            pdf_metadata={
+                'author': EMITTER['name'],
+                'title': f"Facture {invoice_data['invoice_number']}",
+                'subject': f"Facture électronique Factur-X",
+            }
+        )
+    except Exception as e:
+        print(f"[ERROR] Échec de la génération Factur-X: {e}")
+        return jsonify({
+            'success': False,
+            'errors': [{'field': '_form', 'message': f'Erreur lors de la génération Factur-X: {str(e)}'}]
+        }), 500
 
-    # Retourner le XML en téléchargement
-    filename = f"facturx-{invoice_data['invoice_number']}.xml"
+    # 4. Sauvegarder le XML et le PDF dans le répertoire de stockage
+    save_xml_to_storage(xml_content, invoice_data['invoice_number'])
+    save_pdf_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'])
+
+    # 5. Retourner le PDF Factur-X en téléchargement
+    filename = f"facturx-{invoice_data['invoice_number']}.pdf"
 
     return Response(
-        xml_content,
-        mimetype='application/xml',
+        facturx_pdf_bytes,
+        mimetype='application/pdf',
         headers={
             'Content-Disposition': f'attachment; filename="{filename}"'
         }
