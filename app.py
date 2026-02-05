@@ -45,28 +45,6 @@ def load_config(config_path: str = 'resources/config/ma-conf.txt') -> dict:
     return config
 
 
-def parse_address(address: str) -> dict:
-    """Parse une adresse au format 'rue, code_postal ville'."""
-    result = {'line': '', 'postal_code': '', 'city': ''}
-
-    if not address:
-        return result
-
-    if ',' in address:
-        parts = address.split(',', 1)
-        result['line'] = parts[0].strip()
-        remainder = parts[1].strip()
-        # Extraire code postal et ville
-        match = re.match(r'^(\d{5})\s+(.+)$', remainder)
-        if match:
-            result['postal_code'] = match.group(1)
-            result['city'] = match.group(2)
-        else:
-            result['city'] = remainder
-    else:
-        result['line'] = address
-
-    return result
 
 
 def validate_emitter_config(config: dict) -> list[str]:
@@ -250,23 +228,20 @@ CONFIG = load_config()
 # Définir le chemin du logo (avec fallback)
 LOGO_PATH = get_logo_path(CONFIG)
 
-# Parser l'adresse de l'émetteur
-address_parts = parse_address(CONFIG.get('address', ''))
-
 # Configuration de l'émetteur depuis le fichier de config
 EMITTER = {
     'name': CONFIG.get('name', ''),
-    'address': address_parts['line'],
-    'postal_code': address_parts['postal_code'],
-    'city': address_parts['city'],
-    'country_code': 'FR',
+    'address': CONFIG.get('address', ''),
+    'postal_code': CONFIG.get('postal_code', ''),
+    'city': CONFIG.get('city', ''),
+    'country_code': CONFIG.get('country_code', 'FR'),
     'siren': CONFIG.get('siren', ''),
     'siret': CONFIG.get('siret', ''),
     'vat_number': CONFIG.get('num_tva', ''),
     'bic': CONFIG.get('bic', ''),
 }
 
-app = Flask(__name__, template_folder='resources/templates', static_folder='resources')
+app = Flask(__name__, template_folder='resources/templates', static_folder='resources', static_url_path='/static')
 app.secret_key = 'facturx-secret-key-change-in-production'
 
 TYPE_LABELS = {
@@ -384,11 +359,11 @@ def format_date_display(date_str: str) -> str:
 def get_logo_url() -> str:
     """Retourne l'URL du logo pour les templates."""
     logo = LOGO_PATH
-    # Si le chemin commence par ./resources, le convertir en URL relative
+    # Flask static_folder='resources', donc les URLs doivent commencer par /static/
     if logo.startswith('./resources/'):
-        return '/' + logo[len('./resources/'):]
+        return '/static/' + logo[len('./resources/'):]
     elif logo.startswith('resources/'):
-        return '/' + logo[len('resources/'):]
+        return '/static/' + logo[len('resources/'):]
     return logo
 
 

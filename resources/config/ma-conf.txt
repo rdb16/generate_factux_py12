@@ -1,0 +1,13 @@
+siren = "123456789"
+siret = "12345678900012"
+name = "Mon Entreprise SARL"
+address = "12 rue de la Paix"
+postal_code = "75001"
+city = "Paris"
+country_code = "FR"
+bic = "AGRIFRPP882"
+num_tva = "FR12345678901"
+logo = "./resources/logos/sntpk-logo.jpeg"
+is_db_pg = False
+xml_storage = "./data/factures-xml"
+pdf_storage = "./data/factures-pdf"

@@ -166,10 +166,19 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
     story.append(Spacer(1, 0.5*cm))
 
     # Informations émetteur et destinataire
+    # Construire l'adresse du destinataire
+    recipient_address_parts = []
+    if invoice.get('recipient_address'):
+        recipient_address_parts.append(invoice['recipient_address'])
+    if invoice.get('recipient_postal_code') or invoice.get('recipient_city'):
+        city_line = f"{invoice.get('recipient_postal_code', '')} {invoice.get('recipient_city', '')}".strip()
+        recipient_address_parts.append(city_line)
+    recipient_address_text = '<br/>'.join(recipient_address_parts) if recipient_address_parts else 'N/A'
+
     info_data = [
         [
             Paragraph(f"<b>Émetteur</b><br/>{emitter['name']}<br/>{emitter['address']}<br/>{emitter['postal_code']} {emitter['city']}<br/>SIRET: {emitter['siret']}<br/>TVA: {emitter.get('vat_number', 'N/A')}", normal_style),
-            Paragraph(f"<b>Destinataire</b><br/>{invoice['recipient_name']}<br/>{invoice.get('recipient_address', 'N/A')}<br/>SIRET: {invoice['recipient_siret']}<br/>TVA: {invoice.get('recipient_vat_number', 'N/A')}", normal_style),
+            Paragraph(f"<b>Destinataire</b><br/>{invoice['recipient_name']}<br/>{recipient_address_text}<br/>SIRET: {invoice['recipient_siret']}<br/>TVA: {invoice.get('recipient_vat_number', 'N/A')}", normal_style),
         ]
     ]
 

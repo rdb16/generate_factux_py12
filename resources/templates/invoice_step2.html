@@ -105,7 +105,7 @@
                 padding: 20px 30px;
                 border-bottom: 1px solid #e2e8f0;
                 display: grid;
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: 1fr 1fr 1fr;
                 gap: 30px;
             }
             .summary-section h3 {
@@ -486,10 +486,12 @@
                 margin-top: 4px;
             }
 
-            @media (max-width: 900px) {
+            @media (max-width: 1200px) {
                 .summary {
                     grid-template-columns: 1fr;
                 }
+            }
+            @media (max-width: 900px) {
                 .lines-header {
                     display: none;
                 }
@@ -568,6 +570,36 @@
                                 >{{ invoice.currency_code }}</span
                             >
                         </div>
+                    </div>
+                </div>
+                <div class="summary-section">
+                    <h3>Emetteur</h3>
+                    <div class="summary-grid">
+                        <div class="summary-item" style="grid-column: 1 / -1">
+                            <span class="label">Nom : </span>
+                            <span class="value">{{ emitter.name }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">SIRET : </span>
+                            <span class="value">{{ emitter.siret }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Pays : </span>
+                            <span class="value">{{ emitter.country_code }}</span>
+                        </div>
+                        {% if emitter.address or emitter.city %}
+                        <div class="summary-item" style="grid-column: 1 / -1; font-size: 13px;">
+                            <span class="label">Adresse : </span>
+                            <span class="value">
+                                {{ emitter.address or '' }}
+                                {% if emitter.postal_code or emitter.city %}
+                                    {% if emitter.address %}, {% endif %}
+                                    {{ emitter.postal_code or '' }}
+                                    {{ emitter.city or '' }}
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="summary-section">
