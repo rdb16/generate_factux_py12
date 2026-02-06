@@ -10,16 +10,11 @@ from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
 from pathlib import Path
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+# Configurer la police par défaut AVANT tout autre import ReportLab
+from reportlab import rl_config
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# Enregistrer les polices Liberation Sans (embarquables, métriquement = Helvetica)
 _FONTS_DIR = Path(__file__).parent / 'resources' / 'fonts'
 pdfmetrics.registerFont(TTFont('LiberationSans', str(_FONTS_DIR / 'LiberationSans-Regular.ttf')))
 pdfmetrics.registerFont(TTFont('LiberationSans-Bold', str(_FONTS_DIR / 'LiberationSans-Bold.ttf')))
@@ -32,6 +27,14 @@ pdfmetrics.registerFontFamily(
     italic='LiberationSans-Italic',
     boldItalic='LiberationSans-BoldItalic',
 )
+rl_config.canvas_basefontname = 'LiberationSans'
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
 
 # Chemin du profil ICC sRGB pour conformité PDF/A-3
 _ICC_PROFILE_PATH = Path(__file__).parent / 'resources' / 'profiles' / 'sRGB.icc'
@@ -267,6 +270,7 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
 
     invoice_info_table = Table(invoice_info_data, colWidths=[5*cm, 8*cm])
     invoice_info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'LiberationSans'),
         ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
         ('FONTNAME', (0, 0), (0, -1), 'LiberationSans-Bold'),
         ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
@@ -294,6 +298,7 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
 
     line_table = Table(line_data, colWidths=[7*cm, 2*cm, 3*cm, 2*cm, 3*cm])
     line_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'LiberationSans'),
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#148f77')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'LiberationSans-Bold'),
@@ -319,6 +324,7 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
 
     total_table = Table(total_data, colWidths=[10*cm, 7*cm])
     total_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'LiberationSans'),
         ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
         ('FONTNAME', (0, -1), (-1, -1), 'LiberationSans-Bold'),
         ('FONTSIZE', (0, -1), (-1, -1), 12),

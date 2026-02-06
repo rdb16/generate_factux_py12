@@ -141,7 +141,7 @@ def generate_facturx_xml(data: dict) -> str:
 
     guideline = ET.SubElement(context, _qname('ram', 'GuidelineSpecifiedDocumentContextParameter'))
     guideline_id = ET.SubElement(guideline, _qname('ram', 'ID'))
-    guideline_id.text = 'urn:factur-x.eu:1p0:basic'
+    guideline_id.text = 'urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic'
 
     # === ExchangedDocument ===
     doc = ET.SubElement(root, _qname('rsm', 'ExchangedDocument'))
@@ -303,6 +303,12 @@ def generate_facturx_xml(data: dict) -> str:
 
     # --- ApplicableHeaderTradeDelivery ---
     delivery = ET.SubElement(transaction, _qname('ram', 'ApplicableHeaderTradeDelivery'))
+    # Date de livraison (obligatoire pour éviter un élément vide — PEPPOL-EN16931-R008)
+    delivery_event = ET.SubElement(delivery, _qname('ram', 'ActualDeliverySupplyChainEvent'))
+    delivery_date = ET.SubElement(delivery_event, _qname('ram', 'OccurrenceDateTime'))
+    delivery_date_str = ET.SubElement(delivery_date, _qname('udt', 'DateTimeString'))
+    delivery_date_str.set('format', '102')
+    delivery_date_str.text = _format_date(invoice.get('delivery_date', invoice['issue_date']))
 
     # --- ApplicableHeaderTradeSettlement ---
     settlement = ET.SubElement(transaction, _qname('ram', 'ApplicableHeaderTradeSettlement'))
