@@ -29,10 +29,7 @@ Le système génère des **PDF Factur-X complets** :
    - Calcul automatique des totaux HT, TVA, TTC
    - Récapitulatif par taux de TVA
 
-## Prérequis
 
-- **Python 3.12+** (⚠️ Python 3.14 non supporté - voir section Migration)
-- [uv](https://github.com/astral-sh/uv) (gestionnaire de paquets moderne)
 
 ## Installation
 
@@ -67,7 +64,10 @@ Créer `resources/config/ma-conf.txt` :
 ```ini
 # Émetteur
 name=Votre Entreprise SARL
-address=123 rue de la Paix, 75001 Paris
+address=123 rue de la Paix
+postal_code=75001
+city=Paris
+country_code=FR
 siren=123456789
 siret=12345678901234
 num_tva=FR12345678901
@@ -80,8 +80,11 @@ logo=./resources/logos/mon-logo.png
 xml_storage=./data/factures-xml
 pdf_storage=./data/factures-pdf
 
-# Base de données PostgreSQL (optionnel)
+# Base de données PostgreSQL (optionnel, requiert psycopg2-binary)
 is_db_pg=False
+
+# Numérotation automatique des factures (requiert is_db_pg=True)
+is_num_facturx_auto=False
 ```
 
 ### 2. Validation au démarrage
@@ -139,14 +142,14 @@ uv run python test_facturx.py
 ✓ PDF Factur-X généré: ~108 000 bytes
 
 [4/4] Sauvegarde...
-✓ PDF sauvegardé: data/test/test-facturx.pdf
-✓ XML sauvegardé: data/test/test-facturx.xml
+✓ PDF sauvegardé: donné par la fichier de conf, par ex: data/test/test-facturx.pdf
+✓ XML sauvegardé: donné par la fichier de conf, par ex: data/test/test-facturx.xml
 
 [INFO] factur-x XML file successfully validated against XSD
 ```
 
 ### Validation PDF/A-3 avec VeraPDF
-
+si verapdf est installé en local
 ```bash
 verapdf --flavour 3b data/test/test-facturx.pdf
 ```
@@ -172,11 +175,11 @@ Generate-FacturX-PY/
 ├── .python-version               # Version Python (3.12)
 ├── .gitignore
 ├── .env.template                 # Modèle de variables d'environnement
-├── CLAUDE.md                     # Instructions pour Claude Code
+├──                     
 ├── README.md
 ├── data/                         # Fichiers générés (gitignored)
-│   ├── factures-xml/             # XML Factur-X sauvegardés
-│   ├── factures-pdf/             # PDF Factur-X sauvegardés
+│   ├── factures-xml/             # XML Factur-X sauvegardés ( suivant la conf ) 
+│   ├── factures-pdf/             # PDF Factur-X sauvegardés ( suivant la conf ) 
 │   └── test/                     # Fichiers de test
 └── resources/
     ├── config/
@@ -188,12 +191,12 @@ Generate-FacturX-PY/
     │   ├── LiberationSans-BoldItalic.ttf
     │   └── LICENSE               # Licence SIL Open Font
     ├── logos/                    # Logos entreprise
-    │   ├── sntpk-logo.jpeg
+    │   ├── sntpk-logo.jpeg       # Si pas de logo, underwork.jpeg sera utilisé
     │   └── underwork.jpeg        # Logo par défaut (fallback)
     ├── profiles/
     │   └── sRGB.icc              # Profil ICC sRGB pour OutputIntent PDF/A-3
     ├── sql/
-    │   └── create_table_sent_invoice.sql
+    │   └── create_table_sent_invoice.sql # si potion base de données à True
     └── templates/                # Templates HTML Jinja2
         ├── invoice_step1.html    # Formulaire infos facture + client
         ├── invoice_step2.html    # Formulaire lignes de facturation
@@ -302,63 +305,46 @@ Le profil BASIC impose certaines limitations sur la structure des adresses :
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ 1. Formulaire Step 1 → Collecte données facture/client │
+│ 1. Formulaire Step 1 → Collecte données facture/client  │
 └───────────────┬─────────────────────────────────────────┘
                 ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 2. Formulaire Step 2 → Lignes de facturation + calculs │
+│ 2. Formulaire Step 2 → Lignes de facturation + calculs  │
 └───────────────┬─────────────────────────────────────────┘
                 ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 3. pdf_generator.py → Génère PDF (ReportLab)           │
-│    → Polices Liberation Sans embarquées (TTF subset)   │
-│    → OutputIntent sRGB avec profil ICC                 │
+│ 3. pdf_generator.py → Génère PDF (ReportLab)            │
+│    → Polices Liberation Sans embarquées (TTF subset)    │
+│    → OutputIntent sRGB avec profil ICC                  │
 └───────────────┬─────────────────────────────────────────┘
                 ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 4. facturx_generator.py → Génère XML Factur-X (BASIC)  │
-│    → Guideline 1.0.06+, date livraison, Schematron OK  │
+│ 4. facturx_generator.py → Génère XML Factur-X (BASIC)   │
+│    → Guideline 1.0.06+, date livraison, Schematron OK   │
 └───────────────┬─────────────────────────────────────────┘
                 ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 5. factur-x.generate_from_binary() → Validation XSD    │
-│    → Combine PDF + XML → Métadonnées PDF/A-3           │
+│ 5. factur-x.generate_from_binary() → Validation XSD     │
+│    → Combine PDF + XML → Métadonnées PDF/A-3            │
 └───────────────┬─────────────────────────────────────────┘
                 ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 6. Sauvegarde (xml_storage + pdf_storage)              │
-│    → Téléchargement du PDF Factur-X                    │
+│ 6. Sauvegarde (xml_storage + pdf_storage)               │
+│    → Téléchargement du PDF Factur-X                     │
 └─────────────────────────────────────────────────────────┘
-```
-
-## Migration Python 3.14 → 3.12
-
-⚠️ **Important :** Ce projet nécessite Python 3.12 (et non 3.14).
-
-### Raison de la migration
-
-La bibliothèque `lxml` (dépendance de `factur-x`) nécessite une version compatible :
-- `factur-x-ng` (non maintenu) dépend de `lxml==4.6.3` (2021)
-- `lxml==4.6.3` ne compile pas avec Python 3.14 (`longintrepr.h` introuvable)
-- Solution : Utiliser `factur-x` officiel avec `lxml>=6.0.2` sur Python 3.12
-
-### Commandes de migration
-
-```bash
-# Downgrade vers Python 3.12
-uv python pin 3.12
-
-# Réinstaller les dépendances
-uv sync
-
-# Vérifier la version
-uv run python --version
-# Python 3.12.7
 ```
 
 ## Base de données PostgreSQL (optionnel)
 
-Pour activer le support PostgreSQL :
+### Prérequis
+
+Si `is_db_pg=True`, le driver PostgreSQL doit être installé :
+
+```bash
+uv add psycopg2-binary
+```
+
+### Activation
 
 1. **Créer `.env` ou `.env.local` :**
 ```env
@@ -375,12 +361,38 @@ DB_PASSWORD=votre_mot_de_passe
 is_db_pg=True
 ```
 
-3. **Installer psycopg2 :**
-```bash
-uv add psycopg2-binary
+L'application vérifiera automatiquement la connexion au démarrage.
+
+### Numérotation automatique des factures
+
+Lorsque `is_num_facturx_auto=True` **et** `is_db_pg=True`, le numéro de facture est généré automatiquement à partir de la base de données.
+
+**Format :** `FAC-YYYY-MM-NNNN`
+
+| Segment  | Description                              | Exemple        |
+|----------|------------------------------------------|----------------|
+| `FAC`    | Préfixe fixe                             | `FAC`          |
+| `YYYY`   | Année en cours                           | `2026`         |
+| `MM`     | Mois en cours                            | `02`           |
+| `NNNN`   | Entier auto-incrémenté, unique           | `0001`, `0042` |
+
+**Exemples :** `FAC-2026-02-0001`, `FAC-2026-02-0002`, `FAC-2026-03-0001`
+
+**Fonctionnement :**
+
+1. Requête en base pour récupérer le numéro de la facture la plus récente
+2. Extraction de l'entier `NNNN` par regex depuis le dernier numéro
+3. Incrémentation de +1 et recomposition du nouveau numéro
+4. **Verrouillage transactionnel** (lock) de la table pendant toute la génération (XML + PDF + insertion en base) pour garantir l'unicité du numéro en accès concurrent
+5. Le lock est relâché une fois l'insertion terminée (commit) ou en cas d'erreur (rollback)
+
+```ini
+# resources/config/ma-conf.txt
+is_db_pg=True
+is_num_facturx_auto=True
 ```
 
-L'application vérifiera automatiquement la connexion au démarrage.
+> **Note :** Si `is_num_facturx_auto=False` (défaut), le numéro de facture est saisi manuellement dans le formulaire step 1.
 
 ## Commandes utiles
 
@@ -404,51 +416,6 @@ uv cache clean
 uv run python --version
 ```
 
-## Troubleshooting
-
-### Erreur de compilation lxml
-
-```
-fatal error: 'longintrepr.h' file not found
-```
-
-**Solution :** Utiliser Python 3.12 (voir section Migration)
-
-### Erreur de validation XSD
-
-```
-The XML file is invalid against the XML Schema Definition
-Element 'PostcodeCode': This element is not expected
-```
-
-**Solution :** Le code postal n'est pas supporté dans le profil BASIC. Vérifier que `PostcodeCode` n'est pas dans le XML généré.
-
-### Fichier de configuration introuvable
-
-```
-FileNotFoundError: Fichier de configuration introuvable
-```
-
-**Solution :** Créer `resources/config/ma-conf.txt` avec les informations de l'émetteur.
-
-### Logo introuvable
-
-```
-[WARNING] Logo introuvable: [...], utilisation du logo par défaut
-```
-
-**Solution :** Vérifier le chemin du logo dans `ma-conf.txt` ou laisser vide pour utiliser le logo par défaut.
-
-## Roadmap
-
-- [ ] Support du profil EN16931 (avec PostcodeCode)
-- [ ] Support du profil EXTENDED
-- [ ] Export en ZUGFeRD (équivalent allemand)
-- [ ] Ajout d'une API REST
-- [ ] Support multi-devises avancé
-- [ ] Templates de facture personnalisables
-- [ ] Génération de devis (non-Factur-X)
-- [ ] Historique et recherche de factures
 
 ## Ressources
 
@@ -463,7 +430,7 @@ Projet privé SNTPK.
 
 ---
 
-**Version :** 0.2.0
+**Version :** 1.0.0
 **Python :** 3.12+
 **Profil Factur-X :** BASIC (guideline 1.0.06+)
 **Conformité :** PDF/A-3B (VeraPDF) + XSD + Schematron
