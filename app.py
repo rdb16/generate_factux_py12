@@ -2,6 +2,7 @@
 Application Flask pour générer des factures au format Factur-X.
 """
 
+import atexit
 import os
 import sys
 from datetime import datetime
@@ -144,11 +145,11 @@ def check_database_connection(config: dict) -> bool:
         return False
 
     # Récupérer les paramètres de connexion depuis les variables d'environnement
-    db_host = os.environ.get('DB_HOST', 'localhost')
+    db_host = os.environ.get('DB_URL', 'localhost')
     db_port = os.environ.get('DB_PORT', '5432')
-    db_name = os.environ.get('DB_NAME', 'facturx')
+    db_name = os.environ.get('DB_NAME', 'k_factur_x')
     db_user = os.environ.get('DB_USER', 'postgres')
-    db_password = os.environ.get('DB_PASSWORD', '')
+    db_password = os.environ.get('DB_PASS', '')
 
     try:
         db_connection = psycopg2.connect(
@@ -158,11 +159,62 @@ def check_database_connection(config: dict) -> bool:
             user=db_user,
             password=db_password
         )
+        db_connection.autocommit = False
         print(f"[OK] Connexion à PostgreSQL établie ({db_host}:{db_port}/{db_name})")
         return True
     except psycopg2.Error as e:
         print(f"[ERROR] Impossible de se connecter à PostgreSQL: {e}")
         return False
+
+
+def close_database_connection():
+    """Ferme proprement la connexion PostgreSQL."""
+    global db_connection
+    if db_connection and not db_connection.closed:
+        db_connection.close()
+        print("[OK] Connexion PostgreSQL fermée")
+
+
+atexit.register(close_database_connection)
+
+
+def get_next_invoice_number() -> str:
+    """Calcule le prochain numéro de facture depuis la base (sans lock)."""
+    global db_connection
+    now = datetime.now()
+
+    cursor = db_connection.cursor()
+    cursor.execute(
+        "SELECT invoice_num FROM sent_invoices ORDER BY created_at DESC LIMIT 1"
+    )
+    row = cursor.fetchone()
+    cursor.close()
+
+    if row is None:
+        return f"FAC-{now.year}-{now.month:02d}-00001"
+
+    last_number = row[0]
+    match = re.match(r'^FAC-\d{4}-\d{2}-(\d+)$', last_number)
+    if match:
+        next_int = int(match.group(1)) + 1
+    else:
+        next_int = 1
+
+    return f"FAC-{now.year}-{now.month:02d}-{next_int:05d}"
+
+
+def insert_sent_invoice(invoice_num: str, company_name: str, company_siret: str,
+                        xml_content: str, pdf_path: str, invoice_date: str) -> None:
+    """Insère la facture dans sent_invoices (dans la transaction en cours)."""
+    global db_connection
+    cursor = db_connection.cursor()
+    cursor.execute(
+        """INSERT INTO sent_invoices
+           (invoice_num, company_name, company_siret, xml_facture, pdf_path, invoice_date)
+           VALUES (%s, %s, %s, %s::xml, %s, %s)""",
+        (invoice_num, company_name, company_siret, xml_content, pdf_path, invoice_date),
+    )
+    cursor.close()
 
 
 def ensure_storage_directories(config: dict) -> None:
@@ -218,6 +270,14 @@ def validate_startup_config() -> None:
         print(f"  - SIRET: {CONFIG.get('siret')}")
         print(f"  - Logo: {LOGO_PATH}")
         print(f"  - PostgreSQL: {'Activé' if CONFIG.get('is_db_pg') else 'Désactivé'}")
+        if CONFIG.get('is_db_pg') is True and CONFIG.get('is_num_facturx_auto') is True:
+            try:
+                next_num = get_next_invoice_number()
+                print(f"  - Numérotation auto: Activée (prochain: {next_num})")
+            except Exception as e:
+                print(f"  - Numérotation auto: [ERREUR] {e}")
+        elif CONFIG.get('is_num_facturx_auto') is True:
+            print("  - Numérotation auto: Désactivée (requiert is_db_pg=True)")
         print(f"  - Stockage XML: {CONFIG.get('xml_storage', './data/factures-xml')}")
     print("=" * 60 + "\n")
 
@@ -370,10 +430,24 @@ def get_logo_url() -> str:
 @app.route('/')
 def index():
     """Affiche le formulaire step1."""
+    next_invoice_number = None
+    auto_numbering = (
+        CONFIG.get('is_db_pg') is True
+        and CONFIG.get('is_num_facturx_auto') is True
+        and db_connection
+        and not db_connection.closed
+    )
+    if auto_numbering:
+        try:
+            next_invoice_number = get_next_invoice_number()
+        except Exception as e:
+            print(f"[WARNING] Impossible de calculer le prochain numéro: {e}")
+
     return render_template(
         'invoice_step1.html',
         logo_path=get_logo_url(),
         emitter=EMITTER,
+        next_invoice_number=next_invoice_number,
     )
 
 
@@ -485,21 +559,36 @@ def generate_invoice():
     if errors:
         return jsonify({'success': False, 'errors': errors}), 400
 
-    # Préparer les données complètes pour la génération
-    full_data = {
-        'emitter': EMITTER,
-        'invoice': invoice_data,
-        'lines': lines,
-    }
+    auto_numbering = (
+        CONFIG.get('is_db_pg') is True
+        and CONFIG.get('is_num_facturx_auto') is True
+        and db_connection
+        and not db_connection.closed
+    )
 
-    # 1. Générer le PDF de base avec ReportLab
-    pdf_bytes = generate_invoice_pdf(full_data, logo_path=LOGO_PATH)
-
-    # 2. Générer le XML Factur-X
-    xml_content = generate_facturx_xml(full_data)
-
-    # 3. Combiner le PDF et le XML avec factur-x
     try:
+        # Si numérotation auto : lock table + calcul du numéro
+        if auto_numbering:
+            cursor = db_connection.cursor()
+            cursor.execute("LOCK TABLE sent_invoices IN EXCLUSIVE MODE")
+            cursor.close()
+            invoice_data['invoice_number'] = get_next_invoice_number()
+            session['invoice_data'] = invoice_data
+
+        # Préparer les données complètes pour la génération
+        full_data = {
+            'emitter': EMITTER,
+            'invoice': invoice_data,
+            'lines': lines,
+        }
+
+        # 1. Générer le PDF de base avec ReportLab
+        pdf_bytes = generate_invoice_pdf(full_data, logo_path=LOGO_PATH)
+
+        # 2. Générer le XML Factur-X
+        xml_content = generate_facturx_xml(full_data)
+
+        # 3. Combiner le PDF et le XML avec factur-x
         facturx_pdf_bytes = generate_from_binary(
             pdf_file=pdf_bytes,
             xml=xml_content.encode('utf-8'),
@@ -509,21 +598,37 @@ def generate_invoice():
             pdf_metadata={
                 'author': EMITTER['name'],
                 'title': f"Facture {invoice_data['invoice_number']}",
-                'subject': f"Facture électronique Factur-X",
+                'subject': 'Facture électronique Factur-X',
             }
         )
+
+        # 4. Sauvegarder le XML et le PDF dans le répertoire de stockage
+        save_xml_to_storage(xml_content, invoice_data['invoice_number'])
+        pdf_filepath = save_pdf_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'])
+
+        # 5. Insérer en base (dans la même transaction que le lock)
+        if auto_numbering:
+            insert_sent_invoice(
+                invoice_num=invoice_data['invoice_number'],
+                company_name=invoice_data['recipient_name'],
+                company_siret=invoice_data['recipient_siret'],
+                xml_content=xml_content,
+                pdf_path=pdf_filepath,
+                invoice_date=invoice_data['issue_date'],
+            )
+            db_connection.commit()
+            print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
+
     except Exception as e:
+        if auto_numbering and db_connection and not db_connection.closed:
+            db_connection.rollback()
         print(f"[ERROR] Échec de la génération Factur-X: {e}")
         return jsonify({
             'success': False,
-            'errors': [{'field': '_form', 'message': f'Erreur lors de la génération Factur-X: {str(e)}'}]
+            'errors': [{'field': '_form', 'message': f'Erreur lors de la génération: {str(e)}'}]
         }), 500
 
-    # 4. Sauvegarder le XML et le PDF dans le répertoire de stockage
-    save_xml_to_storage(xml_content, invoice_data['invoice_number'])
-    save_pdf_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'])
-
-    # 5. Retourner le PDF Factur-X en téléchargement
+    # 6. Retourner le PDF Factur-X en téléchargement
     filename = f"facturx-{invoice_data['invoice_number']}.pdf"
 
     return Response(

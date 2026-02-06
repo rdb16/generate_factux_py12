@@ -151,6 +151,11 @@
                 background: white;
                 box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
             }
+            .field-group input[readonly] {
+                background-color: #edf2f7;
+                color: #4a5568;
+                cursor: not-allowed;
+            }
             .field-group input.error,
             .field-group select.error {
                 border-color: #e53e3e;
@@ -259,6 +264,10 @@
                                 name="invoice_number"
                                 id="invoice_number"
                                 placeholder="FAC-2024-0001"
+                                {% if next_invoice_number %}
+                                value="{{ next_invoice_number }}"
+                                readonly
+                                {% endif %}
                                 required
                             />
                             <div
