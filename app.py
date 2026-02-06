@@ -312,11 +312,11 @@ TYPE_LABELS = {
 }
 
 
-def validate_step1(data: dict) -> list[dict]:
+def validate_step1(data: dict, auto_numbering: bool = False) -> list[dict]:
     """Valide les données du formulaire step1."""
     errors = []
 
-    if not data.get('invoice_number', '').strip():
+    if not auto_numbering and not data.get('invoice_number', '').strip():
         errors.append({'field': 'invoice_number', 'message': 'Le numéro de facture est obligatoire'})
 
     if not data.get('issue_date'):
@@ -472,7 +472,23 @@ def submit_step1():
         'recipient_country_code': request.form.get('recipient_country_code', 'FR'),
     }
 
-    errors = validate_step1(data)
+    auto_numbering = (
+        CONFIG.get('is_db_pg') is True
+        and CONFIG.get('is_num_facturx_auto') is True
+        and db_connection
+        and not db_connection.closed
+    )
+
+    # Si numérotation auto, calculer le numéro côté serveur
+    if auto_numbering and not data['invoice_number'].strip():
+        try:
+            data['invoice_number'] = get_next_invoice_number()
+        except Exception as e:
+            return jsonify({'success': False, 'errors': [
+                {'field': 'invoice_number', 'message': f'Erreur numérotation auto: {e}'}
+            ]}), 500
+
+    errors = validate_step1(data, auto_numbering=auto_numbering)
 
     if errors:
         return jsonify({'success': False, 'errors': errors}), 400
