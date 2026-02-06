@@ -232,7 +232,7 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
 
     line_table = Table(line_data, colWidths=[7*cm, 2*cm, 3*cm, 2*cm, 3*cm])
     line_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a1a1a')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#148f77')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
