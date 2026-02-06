@@ -9,8 +9,8 @@ Ce projet permet de créer des **factures électroniques conformes** au standard
 Le système génère des **PDF Factur-X complets** :
 - PDF de facture visuel (généré avec ReportLab)
 - XML structuré conforme EN 16931 (profil BASIC)
-- Validation XSD officielle
-- PDF/A-3 avec métadonnées XMP
+- Validation XSD officielle et conformité Schematron
+- PDF/A-3B validé VeraPDF (polices embarquées + profil ICC sRGB)
 
 ### Interface web en deux étapes
 
@@ -51,9 +51,11 @@ uv sync
 dependencies = [
     "flask>=3.1.0",           # Framework web
     "jinja2>=3.1.6",          # Templates HTML
-    "factur-x>=3.15",         # Génération PDF Factur-X
+    "factur-x>=3.15",         # Génération PDF Factur-X (inclut pypdf)
     "reportlab>=4.4.9",       # Génération PDF
 ]
+# pypdf (dépendance transitive de factur-x) est utilisé
+# pour injecter le profil ICC sRGB (OutputIntent PDF/A-3)
 ```
 
 ## Configuration
@@ -127,51 +129,85 @@ uv run python test_facturx.py
 
 **Résultats attendus :**
 ```
-============================================================
-TEST GÉNÉRATION PDF FACTUR-X
-============================================================
-
 [1/4] Génération du PDF de base avec ReportLab...
-✓ PDF généré: 11 807 bytes
+✓ PDF généré: ~54 000 bytes (polices Liberation Sans embarquées + ICC)
 
 [2/4] Génération du XML Factur-X...
-✓ XML généré: 6 315 caractères
+✓ XML généré: ~6 600 caractères
 
 [3/4] Combinaison PDF + XML avec factur-x...
-✓ PDF Factur-X généré: 24 653 bytes
+✓ PDF Factur-X généré: ~108 000 bytes
 
-[4/4] Sauvegarde du PDF Factur-X...
+[4/4] Sauvegarde...
 ✓ PDF sauvegardé: data/test/test-facturx.pdf
 ✓ XML sauvegardé: data/test/test-facturx.xml
 
 [INFO] factur-x XML file successfully validated against XSD
-============================================================
+```
+
+### Validation PDF/A-3 avec VeraPDF
+
+```bash
+verapdf --flavour 3b data/test/test-facturx.pdf
+```
+
+**Résultat attendu :**
+```xml
+<validationReport isCompliant="true">
+  <details passedRules="146" failedRules="0" passedChecks="2310" failedChecks="0"/>
+</validationReport>
 ```
 
 ## Structure du projet
 
 ```
 Generate-FacturX-PY/
-├── app.py                    # Application Flask principale
-├── facturx_generator.py      # Générateur XML Factur-X (profil BASIC)
-├── pdf_generator.py          # Générateur PDF avec ReportLab
-├── test_facturx.py          # Script de test de génération
-├── pyproject.toml           # Configuration uv et dépendances
-├── uv.lock                  # Verrouillage des versions
-├── .python-version          # Version Python (3.12)
-├── data/                    # Fichiers générés
-│   ├── factures-xml/        # XML sauvegardés
-│   ├── factures-pdf/        # PDF Factur-X sauvegardés
-│   └── test/                # Fichiers de test
+├── app.py                        # Application Flask (routes, validation, session)
+├── facturx_generator.py          # Générateur XML Factur-X (profil BASIC)
+├── pdf_generator.py              # Générateur PDF ReportLab + OutputIntent ICC
+├── main.py                       # Point d'entrée alternatif
+├── test_facturx.py               # Script de test de génération
+├── pyproject.toml                # Configuration uv et dépendances
+├── uv.lock                       # Verrouillage des versions
+├── .python-version               # Version Python (3.12)
+├── .gitignore
+├── .env.template                 # Modèle de variables d'environnement
+├── CLAUDE.md                     # Instructions pour Claude Code
+├── README.md
+├── data/                         # Fichiers générés (gitignored)
+│   ├── factures-xml/             # XML Factur-X sauvegardés
+│   ├── factures-pdf/             # PDF Factur-X sauvegardés
+│   └── test/                     # Fichiers de test
 └── resources/
     ├── config/
-    │   └── ma-conf.txt      # Configuration émetteur
-    ├── logos/               # Logos entreprise
-    └── templates/           # Templates HTML Jinja2
-        ├── invoice_step1.html
-        ├── invoice_step2.html
-        └── facturx-xmp.xml
+    │   └── ma-conf.txt           # Configuration émetteur
+    ├── fonts/                    # Polices embarquées PDF/A-3
+    │   ├── LiberationSans-Regular.ttf
+    │   ├── LiberationSans-Bold.ttf
+    │   ├── LiberationSans-Italic.ttf
+    │   ├── LiberationSans-BoldItalic.ttf
+    │   └── LICENSE               # Licence SIL Open Font
+    ├── logos/                    # Logos entreprise
+    │   ├── sntpk-logo.jpeg
+    │   └── underwork.jpeg        # Logo par défaut (fallback)
+    ├── profiles/
+    │   └── sRGB.icc              # Profil ICC sRGB pour OutputIntent PDF/A-3
+    ├── sql/
+    │   └── create_table_sent_invoice.sql
+    └── templates/                # Templates HTML Jinja2
+        ├── invoice_step1.html    # Formulaire infos facture + client
+        ├── invoice_step2.html    # Formulaire lignes de facturation
+        └── facturx-xmp.xml       # Modèle métadonnées XMP
 ```
+
+## Routes Flask
+
+| Méthode | Route             | Fonction              | Description                                          |
+|---------|-------------------|-----------------------|------------------------------------------------------|
+| GET     | `/`               | `index()`             | Affiche le formulaire step 1 (infos facture + client)|
+| POST    | `/invoice/step1`  | `submit_step1()`      | Valide step 1, stocke en session, retourne JSON      |
+| GET     | `/invoice/step2`  | `show_step2()`        | Affiche le formulaire step 2 (lignes de facturation) |
+| POST    | `/invoice`        | `generate_invoice()`  | Valide step 2, génère PDF Factur-X, retourne le PDF  |
 
 ## Fonctionnalités
 
@@ -192,20 +228,26 @@ Generate-FacturX-PY/
 - ✅ Métadonnées PDF/A-3
 - ✅ Sauvegarde automatique (XML + PDF)
 
-### Conformité
+### Conformité PDF/A-3
+- ✅ Polices **Liberation Sans** embarquées (TTF subset) — zéro référence Helvetica
+- ✅ Profil ICC **sRGB** intégré via OutputIntent (`/GTS_PDFA1`)
+- ✅ Validé **VeraPDF** PDF/A-3B (146 règles, 0 échec)
+
+### Conformité Factur-X
 - ✅ Norme EN 16931 (facturation électronique européenne)
-- ✅ Profil Factur-X BASIC
+- ✅ Profil Factur-X BASIC (guideline `urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic`)
 - ✅ Structure CrossIndustryInvoice (CII)
 - ✅ Validation XSD officielle
+- ✅ Conformité Schematron (PEPPOL-EN16931)
 - ✅ Compatible avec tous les lecteurs Factur-X
 
 ## Format Factur-X
 
 ### Profil de conformité
 
-**URN :** `urn:factur-x.eu:1p0:basic`
+**URN :** `urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic`
 
-Le profil BASIC est un sous-ensemble du profil EN16931 adapté aux factures simples.
+Le profil BASIC est un sous-ensemble du profil EN16931 adapté aux factures simples (format Factur-X 1.0.06+).
 
 ### Structure XML
 
@@ -268,11 +310,14 @@ Le profil BASIC impose certaines limitations sur la structure des adresses :
 └───────────────┬─────────────────────────────────────────┘
                 ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 3. pdf_generator.py → Génère PDF visuel (ReportLab)    │
+│ 3. pdf_generator.py → Génère PDF (ReportLab)           │
+│    → Polices Liberation Sans embarquées (TTF subset)   │
+│    → OutputIntent sRGB avec profil ICC                 │
 └───────────────┬─────────────────────────────────────────┘
                 ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 4. facturx_generator.py → Génère XML Factur-X (BASIC)  │
+│    → Guideline 1.0.06+, date livraison, Schematron OK  │
 └───────────────┬─────────────────────────────────────────┘
                 ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -418,7 +463,8 @@ Projet privé SNTPK.
 
 ---
 
-**Version :** 0.1.1
+**Version :** 0.2.0
 **Python :** 3.12+
-**Profil Factur-X :** BASIC
-**Dernière mise à jour :** 2026-02-05
+**Profil Factur-X :** BASIC (guideline 1.0.06+)
+**Conformité :** PDF/A-3B (VeraPDF) + XSD + Schematron
+**Dernière mise à jour :** 2026-02-06
