@@ -190,16 +190,13 @@ def get_next_invoice_number(conn) -> str:
     cursor.close()
 
     if row is None:
-        return f"FAC-{now.year}-{now.month:02d}-00001"
+        return f"FAC-{now.year}-{now.month:02d}-0001"
 
     last_number = row[0]
-    match = re.match(r'^FAC-\d{4}-\d{2}-(\d+)$', last_number)
-    if match:
-        next_int = int(match.group(1)) + 1
-    else:
-        next_int = 1
+    last_part = last_number.rsplit('-', 1)[-1]
+    next_int = int(last_part) + 1
 
-    return f"FAC-{now.year}-{now.month:02d}-{next_int:05d}"
+    return f"FAC-{now.year}-{now.month:02d}-{next_int:04d}"
 
 
 def insert_sent_invoice(conn, invoice_num: str, company_name: str, company_siret: str,
@@ -431,13 +428,30 @@ def get_logo_url() -> str:
 def index():
     """Affiche le formulaire step1."""
     next_invoice_number = None
-    if is_auto_numbering():
+
+    if CONFIG.get('is_num_facturx_auto') is True:
+        conn = None
         try:
             conn = get_db_connection()
-            next_invoice_number = get_next_invoice_number(conn)
-            conn.close()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT invoice_num FROM sent_invoices ORDER BY created_at DESC LIMIT 1"
+            )
+            row = cursor.fetchone()
+            cursor.close()
+
+            now = datetime.now()
+            if row is None:
+                next_invoice_number = f"FAC-{now.year}-{now.month:02d}-0001"
+            else:
+                last_part = row[0].rsplit('-', 1)[-1]
+                next_int = int(last_part) + 1
+                next_invoice_number = f"FAC-{now.year}-{now.month:02d}-{next_int:04d}"
         except Exception as e:
             print(f"[WARNING] Impossible de calculer le prochain numéro: {e}")
+        finally:
+            if conn and not conn.closed:
+                conn.close()
 
     return render_template(
         'invoice_step1.html',
