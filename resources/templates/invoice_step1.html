@@ -260,21 +260,27 @@
                     <div class="field-row">
                         <div class="field-group">
                             <label for="invoice_number"
-                                >Numero de facture<span class="required"
-                                    >*</span
-                                ></label
+                                >Numero de facture{% if auto_numbering %}<span class="optional">(auto)</span>{% else %}<span class="required">*</span>{% endif %}</label
                             >
+                            {% if auto_numbering %}
+                            <input
+                                type="text"
+                                name="invoice_number"
+                                id="invoice_number"
+                                value="{{ next_invoice_number }}"
+                                readonly
+                                tabindex="-1"
+                                style="cursor: default;"
+                            />
+                            {% else %}
                             <input
                                 type="text"
                                 name="invoice_number"
                                 id="invoice_number"
                                 placeholder="FAC-2024-0001"
-                                {% if next_invoice_number %}
-                                value="{{ next_invoice_number }}"
-                                readonly
-                                {% endif %}
                                 required
                             />
+                            {% endif %}
                             <div
                                 class="field-error"
                                 data-field="invoice_number"

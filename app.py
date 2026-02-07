@@ -429,7 +429,9 @@ def index():
     """Affiche le formulaire step1."""
     next_invoice_number = None
 
-    if CONFIG.get('is_num_facturx_auto') is True:
+    auto_numbering = CONFIG.get('is_num_facturx_auto') is True
+
+    if auto_numbering:
         conn = None
         try:
             conn = get_db_connection()
@@ -447,6 +449,8 @@ def index():
                 last_part = row[0].rsplit('-', 1)[-1]
                 next_int = int(last_part) + 1
                 next_invoice_number = f"FAC-{now.year}-{now.month:02d}-{next_int:04d}"
+
+            session['next_invoice_number'] = next_invoice_number
         except Exception as e:
             print(f"[WARNING] Impossible de calculer le prochain numéro: {e}")
         finally:
@@ -458,6 +462,7 @@ def index():
         logo_path=get_logo_url(),
         emitter=EMITTER,
         next_invoice_number=next_invoice_number,
+        auto_numbering=auto_numbering,
     )
 
 
@@ -484,16 +489,20 @@ def submit_step1():
 
     auto_num = is_auto_numbering()
 
-    # Si numérotation auto, calculer le numéro côté serveur
-    if auto_num and not data['invoice_number'].strip():
-        try:
-            conn = get_db_connection()
-            data['invoice_number'] = get_next_invoice_number(conn)
-            conn.close()
-        except Exception as e:
-            return jsonify({'success': False, 'errors': [
-                {'field': 'invoice_number', 'message': f'Erreur numérotation auto: {e}'}
-            ]}), 500
+    # Si numérotation auto, utiliser le numéro stocké en session (non modifiable côté client)
+    if auto_num:
+        stored_num = session.get('next_invoice_number')
+        if stored_num:
+            data['invoice_number'] = stored_num
+        else:
+            try:
+                conn = get_db_connection()
+                data['invoice_number'] = get_next_invoice_number(conn)
+                conn.close()
+            except Exception as e:
+                return jsonify({'success': False, 'errors': [
+                    {'field': 'invoice_number', 'message': f'Erreur numérotation auto: {e}'}
+                ]}), 500
 
     errors = validate_step1(data, auto_numbering=auto_num)
 
