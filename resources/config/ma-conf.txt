@@ -9,6 +9,6 @@ bic = "AGRIFRPP882"
 num_tva = "FR12345678901"
 logo = "./resources/logos/sntpk-logo.jpeg"
 is_db_pg = True
-is_num_facturx_auto = False
+is_num_facturx_auto = True
 xml_storage = "./data/factures-xml"
 pdf_storage = "./data/factures-pdf"

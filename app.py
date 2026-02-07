@@ -6,11 +6,11 @@ import os
 import sys
 from datetime import datetime
 from decimal import Decimal
-from flask import Flask, render_template, request, jsonify, session, Response
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from pathlib import Path
 import re
 
-from facturx_generator import generate_facturx_xml
+from facturx_generator import generate_facturx_xml, _calculate_invoice_totals, _calculate_line_totals
 from pdf_generator import generate_invoice_pdf
 from facturx import generate_from_binary
 
@@ -609,10 +609,11 @@ def generate_invoice():
         )
 
         # 4. Sauvegarder le XML et le PDF dans le répertoire de stockage
-        save_xml_to_storage(xml_content, invoice_data['invoice_number'])
+        xml_filepath = save_xml_to_storage(xml_content, invoice_data['invoice_number'])
         pdf_filepath = save_pdf_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'])
 
         # 5. Insérer en base, commit, puis fermer la connexion
+        db_status = 'non_applicable'
         if auto_num:
             insert_sent_invoice(
                 conn,
@@ -627,6 +628,56 @@ def generate_invoice():
             print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
             conn.close()
             conn = None
+            db_status = 'ok'
+
+        # 6. Calculer les totaux et construire le récapitulatif en session
+        invoice_totals = _calculate_invoice_totals(lines)
+
+        safe_number = re.sub(r'[^\w\-]', '_', invoice_data['invoice_number'])
+        pdf_filename = f"facturx-{safe_number}.pdf"
+        xml_filename = f"facturx-{safe_number}.xml"
+
+        summary_lines = []
+        for line in lines:
+            lt = _calculate_line_totals(line)
+            summary_lines.append({
+                'description': line['description'],
+                'quantity': str(lt['quantity']),
+                'unit_price': str(lt['unit_price']),
+                'vat_rate': str(lt['vat_rate']),
+                'net_ht': str(lt['net_ht']),
+                'discount_amount': str(lt['discount_amount']),
+            })
+
+        vat_breakdown = []
+        for rate_key in sorted(invoice_totals['vat_breakdown'].keys(), key=lambda k: Decimal(k), reverse=True):
+            info = invoice_totals['vat_breakdown'][rate_key]
+            vat_breakdown.append({
+                'rate': str(info['rate']),
+                'base_ht': str(info['base_ht']),
+                'vat_amount': str(info['vat_amount']),
+            })
+
+        session['invoice_summary'] = {
+            'invoice_number': invoice_data['invoice_number'],
+            'type_code': invoice_data['type_code'],
+            'type_label': TYPE_LABELS.get(invoice_data['type_code'], 'Facture'),
+            'currency_code': invoice_data.get('currency_code', 'EUR'),
+            'issue_date': format_date_display(invoice_data['issue_date']),
+            'due_date': format_date_display(invoice_data.get('due_date', '')),
+            'recipient_name': invoice_data['recipient_name'],
+            'recipient_siret': invoice_data['recipient_siret'],
+            'emitter_name': EMITTER['name'],
+            'emitter_siret': EMITTER['siret'],
+            'lines': summary_lines,
+            'total_ht': str(invoice_totals['total_ht']),
+            'total_vat': str(invoice_totals['total_vat']),
+            'total_ttc': str(invoice_totals['total_ttc']),
+            'vat_breakdown': vat_breakdown,
+            'pdf_filename': pdf_filename,
+            'xml_filename': xml_filename,
+            'db_status': db_status,
+        }
 
     except Exception as e:
         if conn and not conn.closed:
@@ -638,16 +689,42 @@ def generate_invoice():
             'errors': [{'field': '_form', 'message': f'Erreur lors de la génération: {str(e)}'}]
         }), 500
 
-    # 6. Retourner le PDF Factur-X en téléchargement
-    filename = f"facturx-{invoice_data['invoice_number']}.pdf"
+    return jsonify({'success': True, 'redirect': '/invoice/step3'})
 
-    return Response(
-        facturx_pdf_bytes,
-        mimetype='application/pdf',
-        headers={
-            'Content-Disposition': f'attachment; filename="{filename}"'
-        }
+
+@app.route('/invoice/step3')
+def show_step3():
+    """Affiche la page récapitulative après génération."""
+    summary = session.get('invoice_summary')
+    if not summary:
+        return redirect(url_for('index'))
+
+    return render_template(
+        'invoice_step3.html',
+        logo_path=get_logo_url(),
+        emitter=EMITTER,
+        summary=summary,
     )
+
+
+@app.route('/invoice/download-pdf')
+def download_pdf():
+    """Sert le PDF Factur-X depuis le répertoire de stockage."""
+    summary = session.get('invoice_summary')
+    if not summary:
+        return redirect(url_for('index'))
+
+    pdf_storage = CONFIG.get('pdf_storage', './data/factures-pdf')
+    filename = summary['pdf_filename']
+
+    return send_from_directory(os.path.abspath(pdf_storage), filename, as_attachment=True)
+
+
+@app.route('/invoice/new')
+def new_invoice():
+    """Vide la session et redirige vers step1."""
+    session.clear()
+    return redirect(url_for('index'))
 
 
 if __name__ == '__main__':

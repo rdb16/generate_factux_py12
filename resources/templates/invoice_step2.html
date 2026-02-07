@@ -525,6 +525,11 @@
                     <span class="number">2</span>
                     Lignes
                 </div>
+                <div class="step-divider"></div>
+                <div class="step">
+                    <span class="number">3</span>
+                    Recapitulatif
+                </div>
             </div>
 
             <div class="summary">
@@ -1213,51 +1218,14 @@
                         body: formData,
                     });
 
-                    // Verifier le Content-Type de la reponse
-                    const contentType =
-                        response.headers.get("Content-Type") || "";
+                    const data = await response.json();
 
-                    if (contentType.includes("application/json")) {
-                        // Reponse JSON = erreur de validation
-                        const data = await response.json();
-                        if (!response.ok || !data.success) {
-                            displayErrors(data.errors);
-                            return;
-                        }
-                    } else if (contentType.includes("application/pdf")) {
-                        // Reponse PDF = succes, telecharger le fichier
-                        const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-
-                        // Extraire le nom du fichier du header Content-Disposition
-                        const disposition = response.headers.get(
-                            "Content-Disposition",
-                        );
-                        let filename = "facture.pdf";
-                        if (disposition) {
-                            const match =
-                                disposition.match(/filename="?([^"]+)"?/);
-                            if (match) {
-                                filename = match[1];
-                            }
-                        }
-
-                        // Creer un lien temporaire pour telecharger
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        window.URL.revokeObjectURL(url);
-
-                        displaySuccess(
-                            "Facture PDF generee et telechargee avec succes",
-                        );
+                    if (!response.ok || !data.success) {
+                        displayErrors(data.errors);
                         return;
-                    } else {
-                        throw new Error("Reponse inattendue du serveur");
                     }
+
+                    window.location.href = data.redirect;
                 } catch (error) {
                     displayErrors([
                         {

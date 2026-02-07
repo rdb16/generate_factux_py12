@@ -1,0 +1,572 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Facture generee - Recapitulatif</title>
+        <meta charset="UTF-8" />
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
+                max-width: 1100px;
+                margin: 0 auto;
+                padding: 40px 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+            }
+            .container {
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                overflow: hidden;
+            }
+            .header {
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                color: white;
+                padding: 24px 30px;
+                display: flex;
+                align-items: center;
+                gap: 20px;
+            }
+            .header-logo {
+                width: 50px;
+                height: 50px;
+                object-fit: contain;
+                border-radius: 8px;
+                background: white;
+                padding: 4px;
+            }
+            .header-text h1 {
+                margin: 0;
+                font-size: 22px;
+                font-weight: 600;
+            }
+            .header-text .emitter {
+                opacity: 0.8;
+                font-size: 13px;
+            }
+            .steps {
+                display: flex;
+                justify-content: center;
+                padding: 16px 30px;
+                background: #f8fafc;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .step {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 0 20px;
+                color: #a0aec0;
+                font-size: 14px;
+            }
+            .step.completed {
+                color: #38a169;
+            }
+            .step.active {
+                color: #667eea;
+                font-weight: 600;
+            }
+            .step .number {
+                width: 26px;
+                height: 26px;
+                border-radius: 50%;
+                background: #e2e8f0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            .step.completed .number {
+                background: #38a169;
+                color: white;
+            }
+            .step.active .number {
+                background: #667eea;
+                color: white;
+            }
+            .step-divider {
+                width: 40px;
+                height: 2px;
+                background: #e2e8f0;
+                margin: 0 10px;
+            }
+            .step.completed + .step-divider {
+                background: #38a169;
+            }
+
+            /* Bandeau succes */
+            .success-banner {
+                background: #f0fff4;
+                border-bottom: 2px solid #38a169;
+                padding: 20px 30px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                color: #276749;
+            }
+            .success-banner .icon {
+                width: 36px;
+                height: 36px;
+                background: #38a169;
+                color: white;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 18px;
+                flex-shrink: 0;
+            }
+            .success-banner .text h3 {
+                margin: 0;
+                font-size: 16px;
+                font-weight: 600;
+            }
+            .success-banner .text p {
+                margin: 4px 0 0 0;
+                font-size: 13px;
+                opacity: 0.8;
+            }
+
+            /* Resume */
+            .summary {
+                background: #f8fafc;
+                padding: 20px 30px;
+                border-bottom: 1px solid #e2e8f0;
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 30px;
+            }
+            .summary-section h3 {
+                font-size: 12px;
+                font-weight: 600;
+                color: #667eea;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin: 0 0 12px 0;
+            }
+            .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px 20px;
+            }
+            .summary-item {
+                font-size: 13px;
+            }
+            .summary-item .label {
+                color: #718096;
+            }
+            .summary-item .value {
+                color: #1a202c;
+                font-weight: 500;
+            }
+
+            /* Contenu principal */
+            .main-content {
+                padding: 30px;
+            }
+            .section-title {
+                font-size: 16px;
+                font-weight: 600;
+                color: #1a1a2e;
+                margin: 0 0 20px 0;
+            }
+
+            /* Tableau des lignes */
+            .vat-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+            .vat-table th {
+                text-align: left;
+                padding: 10px 12px;
+                background: #edf2f7;
+                color: #4a5568;
+                font-weight: 600;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+            .vat-table th:not(:first-child) {
+                text-align: right;
+            }
+            .vat-table td {
+                padding: 10px 12px;
+                border-bottom: 1px solid #e2e8f0;
+                color: #1a202c;
+            }
+            .vat-table td:not(:first-child) {
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+            }
+            .vat-table tr:last-child td {
+                border-bottom: none;
+            }
+
+            /* Totaux */
+            .invoice-summary {
+                margin-top: 24px;
+                background: #f8fafc;
+                border-radius: 8px;
+                overflow: hidden;
+                border: 1px solid #e2e8f0;
+            }
+            .vat-breakdown {
+                padding: 16px 20px;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .vat-breakdown-title {
+                font-size: 11px;
+                font-weight: 600;
+                color: #667eea;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 12px;
+            }
+            .totals-section {
+                padding: 16px 20px;
+                background: white;
+            }
+            .totals-grid {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 6px;
+            }
+            .totals-row {
+                display: flex;
+                justify-content: flex-end;
+                gap: 30px;
+                min-width: 280px;
+            }
+            .totals-row .label {
+                color: #718096;
+                font-size: 14px;
+            }
+            .totals-row .value {
+                font-size: 14px;
+                font-weight: 500;
+                color: #1a202c;
+                min-width: 120px;
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+            }
+            .totals-row.total-ttc {
+                margin-top: 8px;
+                padding-top: 12px;
+                border-top: 2px solid #e2e8f0;
+            }
+            .totals-row.total-ttc .label {
+                font-size: 16px;
+                font-weight: 600;
+                color: #1a202c;
+            }
+            .totals-row.total-ttc .value {
+                font-size: 18px;
+                font-weight: 700;
+                color: #667eea;
+            }
+
+            /* Operations */
+            .operations {
+                margin-top: 24px;
+                background: #f8fafc;
+                border-radius: 8px;
+                border: 1px solid #e2e8f0;
+                padding: 20px;
+            }
+            .operations-title {
+                font-size: 11px;
+                font-weight: 600;
+                color: #667eea;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin: 0 0 14px 0;
+            }
+            .operations-list {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .operation-item {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 13px;
+                color: #4a5568;
+            }
+            .operation-item .op-icon {
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                flex-shrink: 0;
+            }
+            .operation-item .op-icon.ok {
+                background: #c6f6d5;
+                color: #276749;
+            }
+            .operation-item .op-icon.na {
+                background: #e2e8f0;
+                color: #718096;
+            }
+            .operation-item .op-label {
+                color: #718096;
+            }
+            .operation-item .op-value {
+                font-weight: 500;
+                color: #1a202c;
+            }
+
+            /* Boutons */
+            .actions-row {
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+                gap: 12px;
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #e2e8f0;
+            }
+            .btn {
+                padding: 12px 24px;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s;
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .btn-secondary {
+                background: #edf2f7;
+                color: #4a5568;
+            }
+            .btn-secondary:hover {
+                background: #e2e8f0;
+            }
+            .btn-primary {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            .btn-primary:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            }
+
+            @media (max-width: 1200px) {
+                .summary {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <img src="{{ logo_path }}" alt="Logo" class="header-logo" />
+                <div class="header-text">
+                    <h1>Facture generee</h1>
+                    <div class="emitter">{{ emitter.name }}</div>
+                </div>
+            </div>
+
+            <div class="steps">
+                <div class="step completed">
+                    <span class="number">&#10003;</span>
+                    Informations
+                </div>
+                <div class="step-divider"></div>
+                <div class="step completed">
+                    <span class="number">&#10003;</span>
+                    Lignes
+                </div>
+                <div class="step-divider"></div>
+                <div class="step active">
+                    <span class="number">3</span>
+                    Recapitulatif
+                </div>
+            </div>
+
+            <div class="success-banner">
+                <div class="icon">&#10003;</div>
+                <div class="text">
+                    <h3>Facture {{ summary.invoice_number }} generee avec succes</h3>
+                    <p>Les fichiers PDF et XML ont ete crees et sauvegardes.</p>
+                </div>
+            </div>
+
+            <div class="summary">
+                <div class="summary-section">
+                    <h3>Facture</h3>
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <span class="label">Numero : </span>
+                            <span class="value">{{ summary.invoice_number }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Type : </span>
+                            <span class="value">{{ summary.type_label }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Date : </span>
+                            <span class="value">{{ summary.issue_date }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Echeance : </span>
+                            <span class="value">{{ summary.due_date or "-" }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Devise : </span>
+                            <span class="value">{{ summary.currency_code }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-section">
+                    <h3>Emetteur</h3>
+                    <div class="summary-grid">
+                        <div class="summary-item" style="grid-column: 1 / -1">
+                            <span class="label">Nom : </span>
+                            <span class="value">{{ summary.emitter_name }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">SIRET : </span>
+                            <span class="value">{{ summary.emitter_siret }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-section">
+                    <h3>Client</h3>
+                    <div class="summary-grid">
+                        <div class="summary-item" style="grid-column: 1 / -1">
+                            <span class="label">Nom : </span>
+                            <span class="value">{{ summary.recipient_name }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">SIRET : </span>
+                            <span class="value">{{ summary.recipient_siret }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <h2 class="section-title">Lignes de facturation</h2>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                    <table class="vat-table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th>Quantite</th>
+                                <th>Prix unitaire HT</th>
+                                <th>TVA %</th>
+                                <th>Total HT net</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for line in summary.lines %}
+                            <tr>
+                                <td>{{ line.description }}</td>
+                                <td>{{ line.quantity }}</td>
+                                <td>{{ line.unit_price }} {{ summary.currency_code }}</td>
+                                <td>{{ line.vat_rate }} %</td>
+                                <td>{{ line.net_ht }} {{ summary.currency_code }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="invoice-summary">
+                    <div class="vat-breakdown">
+                        <div class="vat-breakdown-title">
+                            Recapitulatif par taux de TVA
+                        </div>
+                        <table class="vat-table">
+                            <thead>
+                                <tr>
+                                    <th>Taux</th>
+                                    <th>Base HT</th>
+                                    <th>Montant TVA</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vat in summary.vat_breakdown %}
+                                <tr>
+                                    <td>{{ vat.rate }} %</td>
+                                    <td>{{ vat.base_ht }} {{ summary.currency_code }}</td>
+                                    <td>{{ vat.vat_amount }} {{ summary.currency_code }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="totals-section">
+                        <div class="totals-grid">
+                            <div class="totals-row">
+                                <span class="label">Total HT</span>
+                                <span class="value">{{ summary.total_ht }} {{ summary.currency_code }}</span>
+                            </div>
+                            <div class="totals-row">
+                                <span class="label">Total TVA</span>
+                                <span class="value">{{ summary.total_vat }} {{ summary.currency_code }}</span>
+                            </div>
+                            <div class="totals-row total-ttc">
+                                <span class="label">Total TTC</span>
+                                <span class="value">{{ summary.total_ttc }} {{ summary.currency_code }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="operations">
+                    <div class="operations-title">Operations effectuees</div>
+                    <div class="operations-list">
+                        <div class="operation-item">
+                            <span class="op-icon ok">&#10003;</span>
+                            <span class="op-label">PDF Factur-X :</span>
+                            <span class="op-value">{{ summary.pdf_filename }}</span>
+                        </div>
+                        <div class="operation-item">
+                            <span class="op-icon ok">&#10003;</span>
+                            <span class="op-label">XML Factur-X :</span>
+                            <span class="op-value">{{ summary.xml_filename }}</span>
+                        </div>
+                        <div class="operation-item">
+                            {% if summary.db_status == 'ok' %}
+                            <span class="op-icon ok">&#10003;</span>
+                            <span class="op-label">Base de donnees :</span>
+                            <span class="op-value">Facture enregistree</span>
+                            {% else %}
+                            <span class="op-icon na">-</span>
+                            <span class="op-label">Base de donnees :</span>
+                            <span class="op-value" style="color: #718096;">Non applicable</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="actions-row">
+                    <a href="/invoice/new" class="btn btn-secondary">
+                        Nouvelle facture
+                    </a>
+                    <a href="/invoice/download-pdf" class="btn btn-primary">
+                        Telecharger le PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
