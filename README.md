@@ -12,10 +12,10 @@ Le système génère des **PDF Factur-X complets** :
 - Validation XSD officielle et conformité Schematron
 - PDF/A-3B validé VeraPDF (polices embarquées + profil ICC sRGB)
 
-### Interface web en deux étapes
+### Interface web en trois étapes
 
 1. **Étape 1 - Informations générales**
-   - Numéro de facture, type de document, devise
+   - Numéro de facture (manuel ou auto), type de document, devise
    - Dates d'émission et d'échéance
    - Informations client : raison sociale, SIRET, TVA intracommunautaire
    - Adresse complète : rue, code postal, ville, pays
@@ -28,6 +28,14 @@ Le système génère des **PDF Factur-X complets** :
    - Rabais optionnels (pourcentage ou montant fixe)
    - Calcul automatique des totaux HT, TVA, TTC
    - Récapitulatif par taux de TVA
+
+3. **Étape 3 - Récapitulatif**
+   - Résumé complet : facture, émetteur, client
+   - Tableau des lignes de facturation (lecture seule)
+   - Ventilation TVA par taux et totaux (HT, TVA, TTC)
+   - Opérations effectuées : fichiers PDF/XML générés, statut base de données
+   - Téléchargement du PDF Factur-X
+   - Bouton « Nouvelle facture » (vide la session)
 
 
 
@@ -50,6 +58,7 @@ dependencies = [
     "jinja2>=3.1.6",          # Templates HTML
     "factur-x>=3.15",         # Génération PDF Factur-X (inclut pypdf)
     "reportlab>=4.4.9",       # Génération PDF
+    "psycopg2-binary>=2.9.11",# Driver PostgreSQL
 ]
 # pypdf (dépendance transitive de factur-x) est utilisé
 # pour injecter le profil ICC sRGB (OutputIntent PDF/A-3)
@@ -200,22 +209,26 @@ Generate-FacturX-PY/
     └── templates/                # Templates HTML Jinja2
         ├── invoice_step1.html    # Formulaire infos facture + client
         ├── invoice_step2.html    # Formulaire lignes de facturation
+        ├── invoice_step3.html    # Récapitulatif et téléchargement
         └── facturx-xmp.xml       # Modèle métadonnées XMP
 ```
 
 ## Routes Flask
 
-| Méthode | Route             | Fonction              | Description                                          |
-|---------|-------------------|-----------------------|------------------------------------------------------|
-| GET     | `/`               | `index()`             | Affiche le formulaire step 1 (infos facture + client)|
-| POST    | `/invoice/step1`  | `submit_step1()`      | Valide step 1, stocke en session, retourne JSON      |
-| GET     | `/invoice/step2`  | `show_step2()`        | Affiche le formulaire step 2 (lignes de facturation) |
-| POST    | `/invoice`        | `generate_invoice()`  | Valide step 2, génère PDF Factur-X, retourne le PDF  |
+| Méthode | Route                 | Fonction              | Description                                           |
+|---------|-----------------------|-----------------------|-------------------------------------------------------|
+| GET     | `/`                   | `index()`             | Affiche le formulaire step 1 (infos facture + client) |
+| POST    | `/invoice/step1`      | `submit_step1()`      | Valide step 1, stocke en session, retourne JSON       |
+| GET     | `/invoice/step2`      | `show_step2()`        | Affiche le formulaire step 2 (lignes de facturation)  |
+| POST    | `/invoice`            | `generate_invoice()`  | Valide step 2, génère PDF/XML, redirige vers step 3   |
+| GET     | `/invoice/step3`      | `show_step3()`        | Affiche le récapitulatif de la facture générée        |
+| GET     | `/invoice/download-pdf`| `download_pdf()`     | Télécharge le PDF Factur-X depuis le stockage         |
+| GET     | `/invoice/new`        | `new_invoice()`       | Vide la session et redirige vers step 1               |
 
 ## Fonctionnalités
 
 ### Interface utilisateur
-- ✅ Formulaire multi-étapes avec navigation fluide
+- ✅ Formulaire en 3 étapes avec navigation fluide
 - ✅ Validation temps réel côté client
 - ✅ Validation stricte côté serveur
 - ✅ Calcul automatique des totaux et récapitulatif TVA
@@ -230,6 +243,8 @@ Generate-FacturX-PY/
 - ✅ Combinaison PDF + XML avec factur-x
 - ✅ Métadonnées PDF/A-3
 - ✅ Sauvegarde automatique (XML + PDF)
+- ✅ Page récapitulative avec téléchargement PDF
+- ✅ Insertion en base PostgreSQL (si `is_db_pg=True`), indépendante de la numérotation auto
 
 ### Conformité PDF/A-3
 - ✅ Polices **Liberation Sans** embarquées (TTF subset) — zéro référence Helvetica
@@ -330,7 +345,12 @@ Le profil BASIC impose certaines limitations sur la structure des adresses :
                 ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 6. Sauvegarde (xml_storage + pdf_storage)               │
-│    → Téléchargement du PDF Factur-X                     │
+│    → Insert en base si is_db_pg=True                    │
+└───────────────┬─────────────────────────────────────────┘
+                ↓
+┌─────────────────────────────────────────────────────────┐
+│ 7. Step 3 - Récapitulatif                               │
+│    → Résumé, téléchargement PDF, nouvelle facture       │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -434,4 +454,4 @@ Projet privé SNTPK.
 **Python :** 3.12+
 **Profil Factur-X :** BASIC (guideline 1.0.06+)
 **Conformité :** PDF/A-3B (VeraPDF) + XSD + Schematron
-**Dernière mise à jour :** 2026-02-06
+**Dernière mise à jour :** 2026-02-07
