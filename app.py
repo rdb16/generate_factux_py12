@@ -2,7 +2,6 @@
 Application Flask pour générer des factures au format Factur-X.
 """
 
-import atexit
 import os
 import sys
 from datetime import datetime
@@ -14,9 +13,6 @@ import re
 from facturx_generator import generate_facturx_xml
 from pdf_generator import generate_invoice_pdf
 from facturx import generate_from_binary
-
-# Variable globale pour la connexion DB (si PostgreSQL activé)
-db_connection = None
 
 
 def load_config(config_path: str = 'resources/config/ma-conf.txt') -> dict:
@@ -134,56 +130,59 @@ def load_env_file() -> dict:
     return env_vars
 
 
-def check_database_connection(config: dict) -> bool:
-    """Vérifie la connexion à la base de données PostgreSQL."""
-    global db_connection
-
+def check_database_connection() -> bool:
+    """Vérifie la connexion à la base de données PostgreSQL (ouvre puis ferme)."""
     try:
         import psycopg2
     except ImportError:
         print("[ERROR] Le module psycopg2 n'est pas installé. Exécutez: uv add psycopg2-binary")
         return False
 
-    # Récupérer les paramètres de connexion depuis les variables d'environnement
     db_host = os.environ.get('DB_URL', 'localhost')
     db_port = os.environ.get('DB_PORT', '5432')
     db_name = os.environ.get('DB_NAME', 'k_factur_x')
-    db_user = os.environ.get('DB_USER', 'postgres')
-    db_password = os.environ.get('DB_PASS', '')
 
     try:
-        db_connection = psycopg2.connect(
+        conn = psycopg2.connect(
             host=db_host,
             port=db_port,
             dbname=db_name,
-            user=db_user,
-            password=db_password
+            user=os.environ.get('DB_USER', 'postgres'),
+            password=os.environ.get('DB_PASS', ''),
         )
-        db_connection.autocommit = False
         print(f"[OK] Connexion à PostgreSQL établie ({db_host}:{db_port}/{db_name})")
+        conn.close()
+        print("[OK] Connexion PostgreSQL fermée (contrôle démarrage)")
         return True
     except psycopg2.Error as e:
         print(f"[ERROR] Impossible de se connecter à PostgreSQL: {e}")
         return False
 
 
-def close_database_connection():
-    """Ferme proprement la connexion PostgreSQL."""
-    global db_connection
-    if db_connection and not db_connection.closed:
-        db_connection.close()
-        print("[OK] Connexion PostgreSQL fermée")
+def get_db_connection():
+    """Ouvre et retourne une nouvelle connexion PostgreSQL."""
+    import psycopg2
+    conn = psycopg2.connect(
+        host=os.environ.get('DB_URL', 'localhost'),
+        port=os.environ.get('DB_PORT', '5432'),
+        dbname=os.environ.get('DB_NAME', 'k_factur_x'),
+        user=os.environ.get('DB_USER', 'postgres'),
+        password=os.environ.get('DB_PASS', ''),
+    )
+    conn.autocommit = False
+    return conn
 
 
-atexit.register(close_database_connection)
+def is_auto_numbering() -> bool:
+    """Indique si la numérotation automatique est active."""
+    return CONFIG.get('is_db_pg') is True and CONFIG.get('is_num_facturx_auto') is True
 
 
-def get_next_invoice_number() -> str:
-    """Calcule le prochain numéro de facture depuis la base (sans lock)."""
-    global db_connection
+def get_next_invoice_number(conn) -> str:
+    """Calcule le prochain numéro de facture depuis la base."""
     now = datetime.now()
 
-    cursor = db_connection.cursor()
+    cursor = conn.cursor()
     cursor.execute(
         "SELECT invoice_num FROM sent_invoices ORDER BY created_at DESC LIMIT 1"
     )
@@ -203,11 +202,10 @@ def get_next_invoice_number() -> str:
     return f"FAC-{now.year}-{now.month:02d}-{next_int:05d}"
 
 
-def insert_sent_invoice(invoice_num: str, company_name: str, company_siret: str,
+def insert_sent_invoice(conn, invoice_num: str, company_name: str, company_siret: str,
                         xml_content: str, pdf_path: str, invoice_date: str) -> None:
     """Insère la facture dans sent_invoices (dans la transaction en cours)."""
-    global db_connection
-    cursor = db_connection.cursor()
+    cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO sent_invoices
            (invoice_num, company_name, company_siret, xml_facture, pdf_path, invoice_date)
@@ -250,8 +248,8 @@ def validate_startup_config() -> None:
             # Charger les variables d'environnement
             load_env_file()
 
-            # 3. Vérifier la connexion à la base
-            if not check_database_connection(CONFIG):
+            # 3. Vérifier la connexion à la base (ouvre puis ferme)
+            if not check_database_connection():
                 errors.append("Impossible d'établir la connexion à PostgreSQL")
 
     # 4. Créer les répertoires de stockage
@@ -270,9 +268,11 @@ def validate_startup_config() -> None:
         print(f"  - SIRET: {CONFIG.get('siret')}")
         print(f"  - Logo: {LOGO_PATH}")
         print(f"  - PostgreSQL: {'Activé' if CONFIG.get('is_db_pg') else 'Désactivé'}")
-        if CONFIG.get('is_db_pg') is True and CONFIG.get('is_num_facturx_auto') is True:
+        if is_auto_numbering():
             try:
-                next_num = get_next_invoice_number()
+                conn = get_db_connection()
+                next_num = get_next_invoice_number(conn)
+                conn.close()
                 print(f"  - Numérotation auto: Activée (prochain: {next_num})")
             except Exception as e:
                 print(f"  - Numérotation auto: [ERREUR] {e}")
@@ -431,15 +431,11 @@ def get_logo_url() -> str:
 def index():
     """Affiche le formulaire step1."""
     next_invoice_number = None
-    auto_numbering = (
-        CONFIG.get('is_db_pg') is True
-        and CONFIG.get('is_num_facturx_auto') is True
-        and db_connection
-        and not db_connection.closed
-    )
-    if auto_numbering:
+    if is_auto_numbering():
         try:
-            next_invoice_number = get_next_invoice_number()
+            conn = get_db_connection()
+            next_invoice_number = get_next_invoice_number(conn)
+            conn.close()
         except Exception as e:
             print(f"[WARNING] Impossible de calculer le prochain numéro: {e}")
 
@@ -472,23 +468,20 @@ def submit_step1():
         'recipient_country_code': request.form.get('recipient_country_code', 'FR'),
     }
 
-    auto_numbering = (
-        CONFIG.get('is_db_pg') is True
-        and CONFIG.get('is_num_facturx_auto') is True
-        and db_connection
-        and not db_connection.closed
-    )
+    auto_num = is_auto_numbering()
 
     # Si numérotation auto, calculer le numéro côté serveur
-    if auto_numbering and not data['invoice_number'].strip():
+    if auto_num and not data['invoice_number'].strip():
         try:
-            data['invoice_number'] = get_next_invoice_number()
+            conn = get_db_connection()
+            data['invoice_number'] = get_next_invoice_number(conn)
+            conn.close()
         except Exception as e:
             return jsonify({'success': False, 'errors': [
                 {'field': 'invoice_number', 'message': f'Erreur numérotation auto: {e}'}
             ]}), 500
 
-    errors = validate_step1(data, auto_numbering=auto_numbering)
+    errors = validate_step1(data, auto_numbering=auto_num)
 
     if errors:
         return jsonify({'success': False, 'errors': errors}), 400
@@ -575,20 +568,17 @@ def generate_invoice():
     if errors:
         return jsonify({'success': False, 'errors': errors}), 400
 
-    auto_numbering = (
-        CONFIG.get('is_db_pg') is True
-        and CONFIG.get('is_num_facturx_auto') is True
-        and db_connection
-        and not db_connection.closed
-    )
+    auto_num = is_auto_numbering()
+    conn = None
 
     try:
-        # Si numérotation auto : lock table + calcul du numéro
-        if auto_numbering:
-            cursor = db_connection.cursor()
+        # Si numérotation auto : ouvrir connexion, lock table, calcul du numéro
+        if auto_num:
+            conn = get_db_connection()
+            cursor = conn.cursor()
             cursor.execute("LOCK TABLE sent_invoices IN EXCLUSIVE MODE")
             cursor.close()
-            invoice_data['invoice_number'] = get_next_invoice_number()
+            invoice_data['invoice_number'] = get_next_invoice_number(conn)
             session['invoice_data'] = invoice_data
 
         # Préparer les données complètes pour la génération
@@ -622,9 +612,10 @@ def generate_invoice():
         save_xml_to_storage(xml_content, invoice_data['invoice_number'])
         pdf_filepath = save_pdf_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'])
 
-        # 5. Insérer en base (dans la même transaction que le lock)
-        if auto_numbering:
+        # 5. Insérer en base, commit, puis fermer la connexion
+        if auto_num:
             insert_sent_invoice(
+                conn,
                 invoice_num=invoice_data['invoice_number'],
                 company_name=invoice_data['recipient_name'],
                 company_siret=invoice_data['recipient_siret'],
@@ -632,12 +623,15 @@ def generate_invoice():
                 pdf_path=pdf_filepath,
                 invoice_date=invoice_data['issue_date'],
             )
-            db_connection.commit()
+            conn.commit()
             print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
+            conn.close()
+            conn = None
 
     except Exception as e:
-        if auto_numbering and db_connection and not db_connection.closed:
-            db_connection.rollback()
+        if conn and not conn.closed:
+            conn.rollback()
+            conn.close()
         print(f"[ERROR] Échec de la génération Factur-X: {e}")
         return jsonify({
             'success': False,
