@@ -318,6 +318,10 @@
                 background: #e2e8f0;
                 color: #718096;
             }
+            .operation-item .op-icon.err {
+                background: #fed7d7;
+                color: #c53030;
+            }
             .operation-item .op-label {
                 color: #718096;
             }
@@ -549,6 +553,10 @@
                             <span class="op-icon ok">&#10003;</span>
                             <span class="op-label">Base de donnees :</span>
                             <span class="op-value">Facture enregistree</span>
+                            {% elif summary.db_status == 'erreur' %}
+                            <span class="op-icon err">&#10007;</span>
+                            <span class="op-label">Base de donnees :</span>
+                            <span class="op-value" style="color: #c53030;">Erreur lors de l'enregistrement</span>
                             {% else %}
                             <span class="op-icon na">-</span>
                             <span class="op-label">Base de donnees :</span>

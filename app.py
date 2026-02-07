@@ -5,7 +5,7 @@ Application Flask pour générer des factures au format Factur-X.
 import os
 import sys
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from pathlib import Path
 import re
@@ -612,8 +612,7 @@ def generate_invoice():
         xml_filepath = save_xml_to_storage(xml_content, invoice_data['invoice_number'])
         pdf_filepath = save_pdf_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'])
 
-        # 5. Insérer en base, commit, puis fermer la connexion
-        db_status = 'non_applicable'
+        # 5. Insérer en base si auto_num (dans la même transaction que le lock)
         if auto_num:
             insert_sent_invoice(
                 conn,
@@ -628,56 +627,6 @@ def generate_invoice():
             print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
             conn.close()
             conn = None
-            db_status = 'ok'
-
-        # 6. Calculer les totaux et construire le récapitulatif en session
-        invoice_totals = _calculate_invoice_totals(lines)
-
-        safe_number = re.sub(r'[^\w\-]', '_', invoice_data['invoice_number'])
-        pdf_filename = f"facturx-{safe_number}.pdf"
-        xml_filename = f"facturx-{safe_number}.xml"
-
-        summary_lines = []
-        for line in lines:
-            lt = _calculate_line_totals(line)
-            summary_lines.append({
-                'description': line['description'],
-                'quantity': str(lt['quantity']),
-                'unit_price': str(lt['unit_price']),
-                'vat_rate': str(lt['vat_rate']),
-                'net_ht': str(lt['net_ht']),
-                'discount_amount': str(lt['discount_amount']),
-            })
-
-        vat_breakdown = []
-        for rate_key in sorted(invoice_totals['vat_breakdown'].keys(), key=lambda k: Decimal(k), reverse=True):
-            info = invoice_totals['vat_breakdown'][rate_key]
-            vat_breakdown.append({
-                'rate': str(info['rate']),
-                'base_ht': str(info['base_ht']),
-                'vat_amount': str(info['vat_amount']),
-            })
-
-        session['invoice_summary'] = {
-            'invoice_number': invoice_data['invoice_number'],
-            'type_code': invoice_data['type_code'],
-            'type_label': TYPE_LABELS.get(invoice_data['type_code'], 'Facture'),
-            'currency_code': invoice_data.get('currency_code', 'EUR'),
-            'issue_date': format_date_display(invoice_data['issue_date']),
-            'due_date': format_date_display(invoice_data.get('due_date', '')),
-            'recipient_name': invoice_data['recipient_name'],
-            'recipient_siret': invoice_data['recipient_siret'],
-            'emitter_name': EMITTER['name'],
-            'emitter_siret': EMITTER['siret'],
-            'lines': summary_lines,
-            'total_ht': str(invoice_totals['total_ht']),
-            'total_vat': str(invoice_totals['total_vat']),
-            'total_ttc': str(invoice_totals['total_ttc']),
-            'vat_breakdown': vat_breakdown,
-            'pdf_filename': pdf_filename,
-            'xml_filename': xml_filename,
-            'db_status': db_status,
-        }
 
     except Exception as e:
         if conn and not conn.closed:
@@ -688,6 +637,84 @@ def generate_invoice():
             'success': False,
             'errors': [{'field': '_form', 'message': f'Erreur lors de la génération: {str(e)}'}]
         }), 500
+
+    # 6. Insérer en base si is_db_pg activé mais pas auto_num
+    db_status = 'non_applicable'
+    if auto_num:
+        db_status = 'ok'
+    elif CONFIG.get('is_db_pg') is True:
+        try:
+            db_conn = get_db_connection()
+            insert_sent_invoice(
+                db_conn,
+                invoice_num=invoice_data['invoice_number'],
+                company_name=invoice_data['recipient_name'],
+                company_siret=invoice_data['recipient_siret'],
+                xml_content=xml_content,
+                pdf_path=pdf_filepath,
+                invoice_date=invoice_data['issue_date'],
+            )
+            db_conn.commit()
+            print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
+            db_status = 'ok'
+        except Exception as e:
+            print(f"[WARNING] Échec de l'insertion en base: {e}")
+            db_status = 'erreur'
+        finally:
+            if db_conn and not db_conn.closed:
+                db_conn.close()
+
+    # 7. Calculer les totaux et construire le récapitulatif en session
+    def _fmt(value):
+        return str(Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+
+    invoice_totals = _calculate_invoice_totals(lines)
+
+    safe_number = re.sub(r'[^\w\-]', '_', invoice_data['invoice_number'])
+    pdf_filename = f"facturx-{safe_number}.pdf"
+    xml_filename = f"facturx-{safe_number}.xml"
+
+    summary_lines = []
+    for line in lines:
+        lt = _calculate_line_totals(line)
+        summary_lines.append({
+            'description': line['description'],
+            'quantity': str(lt['quantity']),
+            'unit_price': _fmt(lt['unit_price']),
+            'vat_rate': str(lt['vat_rate']),
+            'net_ht': _fmt(lt['net_ht']),
+            'discount_amount': _fmt(lt['discount_amount']),
+        })
+
+    vat_breakdown = []
+    for rate_key in sorted(invoice_totals['vat_breakdown'].keys(), key=lambda k: Decimal(k), reverse=True):
+        info = invoice_totals['vat_breakdown'][rate_key]
+        vat_breakdown.append({
+            'rate': str(info['rate']),
+            'base_ht': _fmt(info['base_ht']),
+            'vat_amount': _fmt(info['vat_amount']),
+        })
+
+    session['invoice_summary'] = {
+        'invoice_number': invoice_data['invoice_number'],
+        'type_code': invoice_data['type_code'],
+        'type_label': TYPE_LABELS.get(invoice_data['type_code'], 'Facture'),
+        'currency_code': invoice_data.get('currency_code', 'EUR'),
+        'issue_date': format_date_display(invoice_data['issue_date']),
+        'due_date': format_date_display(invoice_data.get('due_date', '')),
+        'recipient_name': invoice_data['recipient_name'],
+        'recipient_siret': invoice_data['recipient_siret'],
+        'emitter_name': EMITTER['name'],
+        'emitter_siret': EMITTER['siret'],
+        'lines': summary_lines,
+        'total_ht': _fmt(invoice_totals['total_ht']),
+        'total_vat': _fmt(invoice_totals['total_vat']),
+        'total_ttc': _fmt(invoice_totals['total_ttc']),
+        'vat_breakdown': vat_breakdown,
+        'pdf_filename': pdf_filename,
+        'xml_filename': xml_filename,
+        'db_status': db_status,
+    }
 
     return jsonify({'success': True, 'redirect': '/invoice/step3'})
 
