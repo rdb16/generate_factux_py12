@@ -510,24 +510,27 @@
                     <div class="section-title">Client</div>
 
                     {% if is_db_pg %}
-                    <div class="client-count" id="clientCount">{{ client_count }} client{{ 's' if client_count != 1 }} enregistre{{ 's' if client_count != 1 }}</div>
+                    <div id="clientSearchPanel">
+                        <div class="client-count" id="clientCount">{{ client_count }} client{{ 's' if client_count != 1 }} enregistre{{ 's' if client_count != 1 }}</div>
 
-                    <div class="search-wrapper">
-                        <input
-                            type="text"
-                            id="clientSearch"
-                            placeholder="Rechercher un client par nom ou SIRET..."
-                            autocomplete="off"
-                        />
-                        <div class="search-dropdown" id="searchDropdown"></div>
+                        <div class="search-wrapper">
+                            <input
+                                type="text"
+                                id="clientSearch"
+                                placeholder="Rechercher un client par nom ou SIRET..."
+                                autocomplete="off"
+                            />
+                            <div class="search-dropdown" id="searchDropdown"></div>
+                        </div>
+
+                        <button type="button" class="btn-new-client" id="btnNewClient">
+                            Creer un nouveau client
+                        </button>
                     </div>
-
-                    <button type="button" class="btn-new-client active" id="btnNewClient" style="display: none;">
-                        Nouveau client (enregistrer en base)
-                    </button>
                     <input type="hidden" name="save_new_client" id="saveNewClient" value="0" />
                     {% endif %}
 
+                    <div id="clientFields" {% if is_db_pg %}style="display: none;"{% endif %}>
                     <div class="field-group" style="margin-bottom: 16px">
                         <label for="recipient_name"
                             >Raison sociale<span class="required"
@@ -660,6 +663,7 @@
                             ></div>
                         </div>
                     </div>
+                    </div>
                 </div>
 
                 <div class="form-actions">
@@ -745,13 +749,15 @@
             {% if is_db_pg %}
             // --- Recherche client autocomplete ---
             (function () {
+                const searchPanel = document.getElementById("clientSearchPanel");
                 const searchInput = document.getElementById("clientSearch");
                 const dropdown = document.getElementById("searchDropdown");
                 const btnNewClient = document.getElementById("btnNewClient");
                 const saveNewClientInput = document.getElementById("saveNewClient");
+                const clientFields = document.getElementById("clientFields");
                 let debounceTimer = null;
 
-                const clientFields = {
+                const fieldMapping = {
                     recipient_name: "recipient_name",
                     cie_legal_form: "recipient_legal_form",
                     recipient_siret: "recipient_siret",
@@ -762,8 +768,14 @@
                     recipient_country_code: "recipient_country_code",
                 };
 
+                // Affiche le formulaire client (rempli ou vide) et cache le panneau recherche
+                function showClientForm() {
+                    searchPanel.style.display = "none";
+                    clientFields.style.display = "block";
+                }
+
                 function fillClientFields(client) {
-                    for (const [dbField, formField] of Object.entries(clientFields)) {
+                    for (const [dbField, formField] of Object.entries(fieldMapping)) {
                         const el = document.getElementById(formField);
                         if (el) {
                             const val = client[dbField] || "";
@@ -774,13 +786,29 @@
                             }
                         }
                     }
-                    // Client existant : cacher le bouton "Nouveau client"
+                    // Client existant selectionne : pas de sauvegarde
                     saveNewClientInput.value = "0";
-                    btnNewClient.style.display = "none";
-                    btnNewClient.classList.remove("active");
                     dropdown.style.display = "none";
                     searchInput.value = "";
+                    showClientForm();
                 }
+
+                // Clic "Creer un nouveau client" : formulaire vide + sauvegarde en base
+                btnNewClient.addEventListener("click", function () {
+                    // Vider les champs
+                    for (const formField of Object.values(fieldMapping)) {
+                        const el = document.getElementById(formField);
+                        if (el) {
+                            if (el.tagName === "SELECT") {
+                                el.value = "FR";
+                            } else {
+                                el.value = "";
+                            }
+                        }
+                    }
+                    saveNewClientInput.value = "1";
+                    showClientForm();
+                });
 
                 searchInput.addEventListener("input", function () {
                     clearTimeout(debounceTimer);
@@ -812,17 +840,8 @@
                         dropdown.innerHTML =
                             '<div class="search-no-results">Aucun client trouve</div>';
                         dropdown.style.display = "block";
-                        // Afficher le bouton pour enregistrer un nouveau client
-                        btnNewClient.style.display = "inline-block";
-                        btnNewClient.classList.add("active");
-                        saveNewClientInput.value = "1";
                         return;
                     }
-
-                    // Des résultats trouvés : cacher le bouton "Nouveau client"
-                    btnNewClient.style.display = "none";
-                    btnNewClient.classList.remove("active");
-                    saveNewClientInput.value = "0";
 
                     results.forEach((client) => {
                         const item = document.createElement("div");
@@ -865,13 +884,6 @@
                     ) {
                         dropdown.style.display = "none";
                     }
-                });
-
-                // Clic sur "Nouveau client" : désactiver l'enregistrement
-                btnNewClient.addEventListener("click", function () {
-                    this.style.display = "none";
-                    this.classList.remove("active");
-                    saveNewClientInput.value = "0";
                 });
             })();
             {% endif %}
