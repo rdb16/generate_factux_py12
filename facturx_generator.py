@@ -1,7 +1,7 @@
 """
 Générateur de fichiers XML au format Factur-X (profil BASIC).
 
-Basé sur la norme EN 16931 et le standard Factur-X 1.0.
+Basé sur la norme EN 16931 et le standard Factur-X 1.07 (UN/CEFACT CII D22B).
 """
 
 from datetime import datetime
@@ -10,7 +10,7 @@ from xml.etree import ElementTree as ET
 from xml.dom import minidom
 
 
-# Namespaces Factur-X / ZUGFeRD
+# Namespaces Factur-X / ZUGFeRD (CII D22B — URIs identiques à D16B)
 NAMESPACES = {
     'rsm': 'urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100',
     'qdt': 'urn:un:unece:uncefact:data:standard:QualifiedDataType:100',
