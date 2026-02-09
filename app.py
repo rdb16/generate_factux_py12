@@ -80,6 +80,22 @@ def validate_emitter_config(config: dict) -> list[str]:
     if not config.get('name', '').strip():
         errors.append("Nom de l'émetteur non renseigné dans la configuration")
 
+    # Validation forme juridique obligatoire
+    if not config.get('cie_legal_form', '').strip():
+        errors.append("Forme juridique (cie_legal_form) non renseignée dans la configuration")
+
+    # Validation IBAN obligatoire
+    if not config.get('cie_IBAN', '').strip():
+        errors.append("IBAN de l'émetteur (cie_IBAN) non renseigné dans la configuration")
+
+    # Validation texte PMT obligatoire (BR-FR-05)
+    if not config.get('pmt_text', '').strip():
+        errors.append("Texte frais de recouvrement (pmt_text) non renseigné dans la configuration")
+
+    # Validation texte PMD obligatoire (BR-FR-05)
+    if not config.get('pmd_text', '').strip():
+        errors.append("Texte pénalités de retard (pmd_text) non renseigné dans la configuration")
+
     return errors
 
 
@@ -296,6 +312,12 @@ EMITTER = {
     'siret': CONFIG.get('siret', ''),
     'vat_number': CONFIG.get('num_tva', ''),
     'bic': CONFIG.get('bic', ''),
+    # HTML/PDF uniquement
+    'legal_form': CONFIG.get('cie_legal_form', ''),
+    'iban': CONFIG.get('cie_IBAN', ''),
+    # XML Factur-X (notes BR-FR-05)
+    'pmt_text': CONFIG.get('pmt_text', ''),
+    'pmd_text': CONFIG.get('pmd_text', ''),
 }
 
 app = Flask(__name__, template_folder='resources/templates', static_folder='resources', static_url_path='/static')

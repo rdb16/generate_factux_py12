@@ -1,6 +1,6 @@
 siren = "123456789"
 siret = "12345678900012"
-name = "Mon Entreprise SARL"
+name = "Mon Entreprise DPONT LA JOIE"
 address = "12 rue de la Paix"
 postal_code = "75001"
 city = "Paris"
@@ -12,3 +12,11 @@ is_db_pg = True
 is_num_facturx_auto = True
 xml_storage = "./data/factures-xml"
 pdf_storage = "./data/factures-pdf"
+
+# pour html et pdf, pas pour xml
+cie_legal_form = "S.A.R.L"
+cie_IBAN = "FR12345678901"
+
+# pour xml Factur-X (notes obligatoires BR-FR-05)
+pmt_text = "En cas de retard de paiement, une indemnité forfaitaire pour frais de recouvrement de 40€ sera exigée (Art. L441-10 et D441-5 du Code de commerce)."
+pmd_text = "En cas de retard de paiement, des pénalités de retard seront appliquées au taux de 3 fois le taux d'intérêt légal en vigueur (Art. L441-10 du Code de commerce)."

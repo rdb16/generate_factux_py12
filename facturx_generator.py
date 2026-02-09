@@ -164,25 +164,27 @@ def generate_facturx_xml(data: dict) -> str:
         note_content.text = invoice['payment_terms']
 
     # Notes obligatoires BR-FR-05 (réglementation française)
-    # PMT — Frais de recouvrement
-    note_pmt = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
-    note_pmt_content = ET.SubElement(note_pmt, _qname('ram', 'Content'))
-    note_pmt_content.text = (
+    # PMT — Frais de recouvrement (texte configurable via ma-conf.txt)
+    pmt_default = (
         "En cas de retard de paiement, une indemnité forfaitaire "
         "pour frais de recouvrement de 40€ sera exigée "
         "(Art. L441-10 et D441-5 du Code de commerce)."
     )
+    note_pmt = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
+    note_pmt_content = ET.SubElement(note_pmt, _qname('ram', 'Content'))
+    note_pmt_content.text = emitter.get('pmt_text') or pmt_default
     note_pmt_code = ET.SubElement(note_pmt, _qname('ram', 'SubjectCode'))
     note_pmt_code.text = 'PMT'
 
-    # PMD — Pénalités de retard
-    note_pmd = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
-    note_pmd_content = ET.SubElement(note_pmd, _qname('ram', 'Content'))
-    note_pmd_content.text = (
+    # PMD — Pénalités de retard (texte configurable via ma-conf.txt)
+    pmd_default = (
         "En cas de retard de paiement, des pénalités de retard seront appliquées "
         "au taux de 3 fois le taux d'intérêt légal en vigueur "
         "(Art. L441-10 du Code de commerce)."
     )
+    note_pmd = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
+    note_pmd_content = ET.SubElement(note_pmd, _qname('ram', 'Content'))
+    note_pmd_content.text = emitter.get('pmd_text') or pmd_default
     note_pmd_code = ET.SubElement(note_pmd, _qname('ram', 'SubjectCode'))
     note_pmd_code.text = 'PMD'
 

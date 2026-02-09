@@ -226,7 +226,7 @@
                 <div class="header-text">
                     <h1>Nouvelle facture</h1>
                     <div class="emitter">
-                        {{ emitter.name }} - SIRET : {{ emitter.siret }}
+                        {{ emitter.name }}{% if emitter.legal_form %} - {{ emitter.legal_form }}{% endif %} - SIRET : {{ emitter.siret }}
                     </div>
                 </div>
             </div>

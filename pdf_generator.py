@@ -242,7 +242,7 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
 
     info_data = [
         [
-            Paragraph(f"<b>Émetteur</b><br/>{emitter['name']}<br/>{emitter['address']}<br/>{emitter['postal_code']} {emitter['city']}<br/>SIRET: {emitter['siret']}<br/>TVA: {emitter.get('vat_number', 'N/A')}", normal_style),
+            Paragraph(f"<b>Émetteur</b><br/>{emitter['name']}{' - ' + emitter['legal_form'] if emitter.get('legal_form') else ''}<br/>{emitter['address']}<br/>{emitter['postal_code']} {emitter['city']}<br/>SIRET: {emitter['siret']}<br/>TVA: {emitter.get('vat_number', 'N/A')}", normal_style),
             Paragraph(f"<b>Destinataire</b><br/>{invoice['recipient_name']}<br/>{recipient_address_text}<br/>SIRET: {invoice['recipient_siret']}<br/>TVA: {invoice.get('recipient_vat_number', 'N/A')}", normal_style),
         ]
     ]
@@ -342,6 +342,20 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
     if invoice.get('payment_terms'):
         story.append(Spacer(1, 0.7*cm))
         story.append(Paragraph(f"<b>Conditions de paiement:</b> {invoice['payment_terms']}", normal_style))
+
+    # IBAN
+    if emitter.get('iban'):
+        story.append(Spacer(1, 0.3*cm))
+        story.append(Paragraph(f"<i>En votre aimable règlement par virement bancaire au {emitter['iban']}.</i>", normal_style))
+
+    # Mentions légales PMT / PMD
+    small_style = ParagraphStyle('Small', parent=normal_style, fontSize=7, textColor=colors.grey)
+    if emitter.get('pmt_text'):
+        story.append(Spacer(1, 0.5*cm))
+        story.append(Paragraph(emitter['pmt_text'], small_style))
+    if emitter.get('pmd_text'):
+        story.append(Spacer(1, 0.1*cm))
+        story.append(Paragraph(emitter['pmd_text'], small_style))
 
     # Générer le PDF
     doc.build(story)

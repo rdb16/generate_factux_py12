@@ -94,6 +94,14 @@ is_db_pg=False
 
 # Numérotation automatique des factures (requiert is_db_pg=True)
 is_num_facturx_auto=False
+
+# Informations complémentaires émetteur (obligatoire, HTML/PDF)
+cie_legal_form=S.A.R.L
+cie_IBAN=FR7612345678901234567890123
+
+# Notes obligatoires Factur-X BR-FR-05 (obligatoire, XML/HTML/PDF)
+pmt_text=En cas de retard de paiement, une indemnité forfaitaire pour frais de recouvrement de 40€ sera exigée (Art. L441-10 et D441-5 du Code de commerce).
+pmd_text=En cas de retard de paiement, des pénalités de retard seront appliquées au taux de 3 fois le taux d'intérêt légal en vigueur (Art. L441-10 du Code de commerce).
 ```
 
 ### 2. Validation au démarrage
@@ -104,6 +112,10 @@ L'application valide automatiquement au démarrage :
 - ✅ Cohérence SIREN/SIRET
 - ✅ Format BIC (8 ou 11 caractères)
 - ✅ Format TVA intracommunautaire
+- ✅ Forme juridique (`cie_legal_form`)
+- ✅ IBAN émetteur (`cie_IBAN`)
+- ✅ Texte frais de recouvrement (`pmt_text`, BR-FR-05)
+- ✅ Texte pénalités de retard (`pmd_text`, BR-FR-05)
 - ✅ Création des répertoires de stockage
 
 En cas d'erreur, l'application refuse de démarrer et affiche les corrections à apporter.

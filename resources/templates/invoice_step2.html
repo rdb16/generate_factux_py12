@@ -511,7 +511,7 @@
                 <img src="{{ logo_path }}" alt="Logo" class="header-logo" />
                 <div class="header-text">
                     <h1>Nouvelle facture</h1>
-                    <div class="emitter">{{ emitter.name }}</div>
+                    <div class="emitter">{{ emitter.name }}{% if emitter.legal_form %} - {{ emitter.legal_form }}{% endif %}</div>
                 </div>
             </div>
 
@@ -575,6 +575,11 @@
                                 >{{ invoice.currency_code }}</span
                             >
                         </div>
+                        {% if emitter.iban %}
+                        <div class="summary-item" style="grid-column: 1 / -1">
+                            <span class="value"><em>En votre aimable r&egrave;glement par virement bancaire au {{ emitter.iban }}.</em></span>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="summary-section">
@@ -582,7 +587,7 @@
                     <div class="summary-grid">
                         <div class="summary-item" style="grid-column: 1 / -1">
                             <span class="label">Nom : </span>
-                            <span class="value">{{ emitter.name }}</span>
+                            <span class="value">{{ emitter.name }}{% if emitter.legal_form %} ({{ emitter.legal_form }}){% endif %}</span>
                         </div>
                         <div class="summary-item">
                             <span class="label">SIRET : </span>
