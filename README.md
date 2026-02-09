@@ -8,7 +8,7 @@ Ce projet permet de créer des **factures électroniques conformes** au standard
 
 Le système génère des **PDF Factur-X complets** :
 - PDF de facture visuel (généré avec ReportLab)
-- XML structuré conforme EN 16931 (profil BASIC)
+- XML structuré conforme EN 16931 (profil EN16931)
 - Validation XSD officielle et conformité Schematron
 - PDF/A-3B validé VeraPDF (polices embarquées + profil ICC sRGB)
 
@@ -175,7 +175,7 @@ verapdf --flavour 3b data/test/test-facturx.pdf
 ```
 Generate-FacturX-PY/
 ├── app.py                        # Application Flask (routes, validation, session)
-├── facturx_generator.py          # Générateur XML Factur-X (profil BASIC)
+├── facturx_generator.py          # Générateur XML Factur-X (profil EN16931)
 ├── pdf_generator.py              # Générateur PDF ReportLab + OutputIntent ICC
 ├── main.py                       # Point d'entrée alternatif
 ├── test_facturx.py               # Script de test de génération
@@ -238,7 +238,7 @@ Generate-FacturX-PY/
 
 ### Génération Factur-X
 - ✅ PDF de facture visuel avec ReportLab
-- ✅ XML structuré conforme EN 16931 profil BASIC
+- ✅ XML structuré conforme EN 16931 profil EN16931
 - ✅ Validation XSD automatique
 - ✅ Combinaison PDF + XML avec factur-x
 - ✅ Métadonnées PDF/A-3
@@ -253,7 +253,7 @@ Generate-FacturX-PY/
 
 ### Conformité Factur-X
 - ✅ Norme EN 16931 (facturation électronique européenne)
-- ✅ Profil Factur-X BASIC (guideline `urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic`)
+- ✅ Profil Factur-X EN16931 (guideline `urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:EN16931`)
 - ✅ Structure CrossIndustryInvoice (CII)
 - ✅ Validation XSD officielle
 - ✅ Conformité Schematron (PEPPOL-EN16931)
@@ -263,9 +263,9 @@ Generate-FacturX-PY/
 
 ### Profil de conformité
 
-**URN :** `urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic`
+**URN :** `urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:EN16931`
 
-Le profil BASIC est un sous-ensemble du profil EN16931 adapté aux factures simples (format Factur-X 1.0.06+).
+Le profil EN16931 (aussi appelé Comfort) est le profil de conformité complet à la norme européenne EN 16931 (Factur-X 1.07, CII D22B).
 
 ### Structure XML
 
@@ -292,13 +292,14 @@ Le XML généré respecte la structure CrossIndustryInvoice (CII) avec les names
 </rsm:CrossIndustryInvoice>
 ```
 
-### Contraintes du profil BASIC
+### Champs du profil EN16931
 
-Le profil BASIC impose certaines limitations sur la structure des adresses :
+Le profil EN16931 supporte l'ensemble des champs d'adresse :
 
-**Structure PostalTradeAddress autorisée :**
+**Structure PostalTradeAddress :**
 ```xml
 <ram:PostalTradeAddress>
+  <ram:PostcodeCode>75001</ram:PostcodeCode>
   <ram:LineOne>123 rue de la Paix</ram:LineOne>
   <ram:CityName>Paris</ram:CityName>
   <ram:CountryID>FR</ram:CountryID>
@@ -306,15 +307,10 @@ Le profil BASIC impose certaines limitations sur la structure des adresses :
 ```
 
 **Éléments supportés :**
+- ✅ `PostcodeCode` : Code postal
 - ✅ `LineOne` : Adresse ligne 1 (obligatoire)
 - ✅ `CityName` : Ville (obligatoire)
 - ✅ `CountryID` : Code pays ISO (obligatoire)
-
-**Éléments NON supportés dans BASIC :**
-- ❌ `PostcodeCode` : Code postal
-- ❌ `LineTwo`, `LineThree` : Lignes supplémentaires
-
-ℹ️ **Note :** Le code postal est collecté dans le formulaire mais n'est pas inclus dans le XML BASIC. Pour utiliser tous les champs d'adresse, il faut passer au profil EN16931 ou EXTENDED.
 
 ## Flux de génération
 
@@ -334,8 +330,8 @@ Le profil BASIC impose certaines limitations sur la structure des adresses :
 └───────────────┬─────────────────────────────────────────┘
                 ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 4. facturx_generator.py → Génère XML Factur-X (BASIC)   │
-│    → Guideline 1.0.06+, date livraison, Schematron OK   │
+│ 4. facturx_generator.py → Génère XML Factur-X (EN16931)  │
+│    → Guideline 1.07 D22B, date livraison, Schematron OK │
 └───────────────┬─────────────────────────────────────────┘
                 ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -452,6 +448,6 @@ Projet privé SNTPK.
 
 **Version :** 1.0.0
 **Python :** 3.12+
-**Profil Factur-X :** BASIC (guideline 1.0.06+)
+**Profil Factur-X :** EN16931 (Factur-X 1.07, CII D22B)
 **Conformité :** PDF/A-3B (VeraPDF) + XSD + Schematron
-**Dernière mise à jour :** 2026-02-07
+**Dernière mise à jour :** 2026-02-09
