@@ -208,6 +208,93 @@
                 padding-left: 20px;
                 font-size: 13px;
             }
+            .client-count {
+                font-size: 12px;
+                color: #a0aec0;
+                margin-bottom: 12px;
+            }
+            .search-wrapper {
+                position: relative;
+                margin-bottom: 16px;
+            }
+            .search-wrapper input {
+                width: 100%;
+                padding: 11px 14px;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                font-size: 14px;
+                background: #f8fafc;
+                transition: all 0.2s;
+            }
+            .search-wrapper input:focus {
+                outline: none;
+                border-color: #667eea;
+                background: white;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }
+            .search-dropdown {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                border: 1px solid #e2e8f0;
+                border-top: none;
+                border-radius: 0 0 8px 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                z-index: 100;
+                display: none;
+                max-height: 240px;
+                overflow-y: auto;
+            }
+            .search-dropdown .search-item {
+                padding: 10px 14px;
+                cursor: pointer;
+                border-bottom: 1px solid #f0f0f0;
+                transition: background 0.15s;
+            }
+            .search-dropdown .search-item:last-child {
+                border-bottom: none;
+            }
+            .search-dropdown .search-item:hover {
+                background: #f0f4ff;
+            }
+            .search-dropdown .search-item .item-name {
+                font-size: 14px;
+                font-weight: 500;
+                color: #1a1a2e;
+            }
+            .search-dropdown .search-item .item-details {
+                font-size: 12px;
+                color: #a0aec0;
+                margin-top: 2px;
+            }
+            .search-dropdown .search-no-results {
+                padding: 10px 14px;
+                font-size: 13px;
+                color: #a0aec0;
+            }
+            .btn-new-client {
+                display: inline-block;
+                padding: 8px 16px;
+                border: 1px solid #667eea;
+                border-radius: 8px;
+                background: white;
+                color: #667eea;
+                font-size: 13px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+                margin-bottom: 16px;
+            }
+            .btn-new-client:hover {
+                background: #667eea;
+                color: white;
+            }
+            .btn-new-client.active {
+                background: #667eea;
+                color: white;
+            }
 
             @media (max-width: 600px) {
                 body {
@@ -422,6 +509,25 @@
                 <div class="section">
                     <div class="section-title">Client</div>
 
+                    {% if is_db_pg %}
+                    <div class="client-count" id="clientCount">{{ client_count }} client{{ 's' if client_count != 1 }} enregistre{{ 's' if client_count != 1 }}</div>
+
+                    <div class="search-wrapper">
+                        <input
+                            type="text"
+                            id="clientSearch"
+                            placeholder="Rechercher un client par nom ou SIRET..."
+                            autocomplete="off"
+                        />
+                        <div class="search-dropdown" id="searchDropdown"></div>
+                    </div>
+
+                    <button type="button" class="btn-new-client" id="btnNewClient">
+                        Nouveau client
+                    </button>
+                    <input type="hidden" name="save_new_client" id="saveNewClient" value="0" />
+                    {% endif %}
+
                     <div class="field-group" style="margin-bottom: 16px">
                         <label for="recipient_name"
                             >Raison sociale<span class="required"
@@ -443,6 +549,19 @@
 
                     <div class="field-row">
                         <div class="field-group">
+                            <label for="recipient_legal_form"
+                                >Forme juridique<span class="optional"
+                                    >(optionnel)</span
+                                ></label
+                            >
+                            <input
+                                type="text"
+                                name="recipient_legal_form"
+                                id="recipient_legal_form"
+                                placeholder="SARL, SAS, EI..."
+                            />
+                        </div>
+                        <div class="field-group">
                             <label for="recipient_siret"
                                 >SIRET<span class="required">*</span></label
                             >
@@ -459,19 +578,20 @@
                                 data-field="recipient_siret"
                             ></div>
                         </div>
-                        <div class="field-group">
-                            <label for="recipient_vat_number"
-                                >TVA intracommunautaire<span class="optional"
-                                    >(optionnel)</span
-                                ></label
-                            >
-                            <input
-                                type="text"
-                                name="recipient_vat_number"
-                                id="recipient_vat_number"
-                                placeholder="FR12345678901"
-                            />
-                        </div>
+                    </div>
+
+                    <div class="field-group" style="margin-bottom: 16px">
+                        <label for="recipient_vat_number"
+                            >TVA intracommunautaire<span class="optional"
+                                >(optionnel)</span
+                            ></label
+                        >
+                        <input
+                            type="text"
+                            name="recipient_vat_number"
+                            id="recipient_vat_number"
+                            placeholder="FR12345678901"
+                        />
                     </div>
 
                     <div class="field-group full-width" style="margin-bottom: 16px">
@@ -621,6 +741,129 @@
                     ]);
                 }
             };
+
+            {% if is_db_pg %}
+            // --- Recherche client autocomplete ---
+            (function () {
+                const searchInput = document.getElementById("clientSearch");
+                const dropdown = document.getElementById("searchDropdown");
+                const btnNewClient = document.getElementById("btnNewClient");
+                const saveNewClientInput = document.getElementById("saveNewClient");
+                let debounceTimer = null;
+
+                const clientFields = {
+                    recipient_name: "recipient_name",
+                    cie_legal_form: "recipient_legal_form",
+                    recipient_siret: "recipient_siret",
+                    recipient_vat_number: "recipient_vat_number",
+                    recipient_address: "recipient_address",
+                    recipient_postal_code: "recipient_postal_code",
+                    recipient_city: "recipient_city",
+                    recipient_country_code: "recipient_country_code",
+                };
+
+                function fillClientFields(client) {
+                    for (const [dbField, formField] of Object.entries(clientFields)) {
+                        const el = document.getElementById(formField);
+                        if (el) {
+                            const val = client[dbField] || "";
+                            if (el.tagName === "SELECT") {
+                                el.value = val || "FR";
+                            } else {
+                                el.value = val;
+                            }
+                        }
+                    }
+                    // Client existant : pas besoin de sauvegarder
+                    saveNewClientInput.value = "0";
+                    btnNewClient.classList.remove("active");
+                    dropdown.style.display = "none";
+                    searchInput.value = "";
+                }
+
+                searchInput.addEventListener("input", function () {
+                    clearTimeout(debounceTimer);
+                    const q = this.value.trim();
+
+                    if (q.length < 2) {
+                        dropdown.style.display = "none";
+                        return;
+                    }
+
+                    debounceTimer = setTimeout(async () => {
+                        try {
+                            const resp = await fetch(
+                                "/api/clients/search?q=" + encodeURIComponent(q),
+                            );
+                            const data = await resp.json();
+                            renderDropdown(data.results || []);
+                        } catch (err) {
+                            console.error("Erreur recherche client:", err);
+                            dropdown.style.display = "none";
+                        }
+                    }, 300);
+                });
+
+                function renderDropdown(results) {
+                    dropdown.innerHTML = "";
+
+                    if (results.length === 0) {
+                        dropdown.innerHTML =
+                            '<div class="search-no-results">Aucun client trouve</div>';
+                        dropdown.style.display = "block";
+                        return;
+                    }
+
+                    results.forEach((client) => {
+                        const item = document.createElement("div");
+                        item.className = "search-item";
+                        const legalForm = client.cie_legal_form
+                            ? " (" + client.cie_legal_form + ")"
+                            : "";
+                        item.innerHTML =
+                            '<div class="item-name">' +
+                            escapeHtml(client.recipient_name) +
+                            escapeHtml(legalForm) +
+                            "</div>" +
+                            '<div class="item-details">SIRET : ' +
+                            escapeHtml(client.recipient_siret) +
+                            (client.recipient_city
+                                ? " - " + escapeHtml(client.recipient_city)
+                                : "") +
+                            "</div>";
+                        item.addEventListener("click", () =>
+                            fillClientFields(client),
+                        );
+                        dropdown.appendChild(item);
+                    });
+
+                    dropdown.style.display = "block";
+                }
+
+                function escapeHtml(str) {
+                    if (!str) return "";
+                    const div = document.createElement("div");
+                    div.textContent = str;
+                    return div.innerHTML;
+                }
+
+                // Fermer le dropdown quand on clique ailleurs
+                document.addEventListener("click", function (e) {
+                    if (
+                        !searchInput.contains(e.target) &&
+                        !dropdown.contains(e.target)
+                    ) {
+                        dropdown.style.display = "none";
+                    }
+                });
+
+                // Bouton "Nouveau client"
+                btnNewClient.addEventListener("click", function () {
+                    const isActive = this.classList.toggle("active");
+                    saveNewClientInput.value = isActive ? "1" : "0";
+                });
+            })();
+            {% endif %}
         </script>
     </body>
 </html>

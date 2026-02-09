@@ -450,8 +450,10 @@ def get_logo_url() -> str:
 def index():
     """Affiche le formulaire step1."""
     next_invoice_number = None
+    client_count = 0
 
     auto_numbering = CONFIG.get('is_num_facturx_auto') is True
+    is_db_pg = CONFIG.get('is_db_pg') is True
 
     if auto_numbering:
         conn = None
@@ -479,12 +481,28 @@ def index():
             if conn and not conn.closed:
                 conn.close()
 
+    if is_db_pg:
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM client_metadata")
+            client_count = cursor.fetchone()[0]
+            cursor.close()
+        except Exception as e:
+            print(f"[WARNING] Impossible de compter les clients: {e}")
+        finally:
+            if conn and not conn.closed:
+                conn.close()
+
     return render_template(
         'invoice_step1.html',
         logo_path=get_logo_url(),
         emitter=EMITTER,
         next_invoice_number=next_invoice_number,
         auto_numbering=auto_numbering,
+        is_db_pg=is_db_pg,
+        client_count=client_count,
     )
 
 
@@ -501,6 +519,7 @@ def submit_step1():
         'purchase_order_reference': request.form.get('purchase_order_reference', ''),
         'payment_terms': request.form.get('payment_terms', ''),
         'recipient_name': request.form.get('recipient_name', ''),
+        'recipient_legal_form': request.form.get('recipient_legal_form', ''),
         'recipient_siret': request.form.get('recipient_siret', ''),
         'recipient_vat_number': request.form.get('recipient_vat_number', ''),
         'recipient_address': request.form.get('recipient_address', ''),
@@ -531,10 +550,111 @@ def submit_step1():
     if errors:
         return jsonify({'success': False, 'errors': errors}), 400
 
+    # Upsert client en base si demandé
+    if CONFIG.get('is_db_pg') is True and request.form.get('save_new_client') == '1':
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """INSERT INTO client_metadata
+                   (recipient_name, cie_legal_form, recipient_siret, recipient_vat_number,
+                    recipient_address, recipient_postal_code, recipient_city, recipient_country_code)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (recipient_siret) DO UPDATE SET
+                    recipient_name = EXCLUDED.recipient_name,
+                    cie_legal_form = EXCLUDED.cie_legal_form,
+                    recipient_vat_number = EXCLUDED.recipient_vat_number,
+                    recipient_address = EXCLUDED.recipient_address,
+                    recipient_postal_code = EXCLUDED.recipient_postal_code,
+                    recipient_city = EXCLUDED.recipient_city,
+                    recipient_country_code = EXCLUDED.recipient_country_code,
+                    updated_at = CURRENT_TIMESTAMP""",
+                (
+                    data['recipient_name'],
+                    data['recipient_legal_form'],
+                    data['recipient_siret'],
+                    data['recipient_vat_number'],
+                    data['recipient_address'],
+                    data['recipient_postal_code'],
+                    data['recipient_city'],
+                    data['recipient_country_code'],
+                ),
+            )
+            conn.commit()
+            cursor.close()
+            print(f"[OK] Client {data['recipient_name']} (SIRET {data['recipient_siret']}) enregistré en base")
+        except Exception as e:
+            if conn and not conn.closed:
+                conn.rollback()
+            print(f"[WARNING] Échec de l'enregistrement du client: {e}")
+        finally:
+            if conn and not conn.closed:
+                conn.close()
+
     # Stocker en session
     session['invoice_data'] = data
 
     return jsonify({'success': True})
+
+
+@app.route('/api/clients/search')
+def search_clients():
+    """Recherche de clients par nom ou SIRET (requiert is_db_pg=True)."""
+    if CONFIG.get('is_db_pg') is not True:
+        return jsonify({'error': 'Base de données non activée'}), 404
+
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify({'results': []})
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        like_pattern = f'%{q}%'
+        cursor.execute(
+            """SELECT id, recipient_name, cie_legal_form, recipient_siret,
+                      recipient_vat_number, recipient_address, recipient_postal_code,
+                      recipient_city, recipient_country_code
+               FROM client_metadata
+               WHERE recipient_name ILIKE %s OR recipient_siret ILIKE %s
+               ORDER BY recipient_name
+               LIMIT 10""",
+            (like_pattern, like_pattern),
+        )
+        columns = [desc[0] for desc in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        cursor.close()
+        return jsonify({'results': results})
+    except Exception as e:
+        print(f"[ERROR] Recherche clients: {e}")
+        return jsonify({'results': [], 'error': str(e)}), 500
+    finally:
+        if conn and not conn.closed:
+            conn.close()
+
+
+@app.route('/api/clients/count')
+def count_clients():
+    """Retourne le nombre de clients en base (requiert is_db_pg=True)."""
+    if CONFIG.get('is_db_pg') is not True:
+        return jsonify({'error': 'Base de données non activée'}), 404
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM client_metadata")
+        count = cursor.fetchone()[0]
+        cursor.close()
+        return jsonify({'count': count})
+    except Exception as e:
+        print(f"[ERROR] Comptage clients: {e}")
+        return jsonify({'count': 0, 'error': str(e)}), 500
+    finally:
+        if conn and not conn.closed:
+            conn.close()
 
 
 @app.route('/invoice/step2')
