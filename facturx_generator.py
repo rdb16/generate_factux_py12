@@ -1,5 +1,5 @@
 """
-Générateur de fichiers XML au format Factur-X (profil BASIC).
+Générateur de fichiers XML au format Factur-X (profil EN16931).
 
 Basé sur la norme EN 16931 et le standard Factur-X 1.07 (UN/CEFACT CII D22B).
 """
@@ -141,7 +141,7 @@ def generate_facturx_xml(data: dict) -> str:
 
     guideline = ET.SubElement(context, _qname('ram', 'GuidelineSpecifiedDocumentContextParameter'))
     guideline_id = ET.SubElement(guideline, _qname('ram', 'ID'))
-    guideline_id.text = 'urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic'
+    guideline_id.text = 'urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:EN16931'
 
     # === ExchangedDocument ===
     doc = ET.SubElement(root, _qname('rsm', 'ExchangedDocument'))
