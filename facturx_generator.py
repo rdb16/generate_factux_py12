@@ -163,6 +163,36 @@ def generate_facturx_xml(data: dict) -> str:
         note_content = ET.SubElement(note, _qname('ram', 'Content'))
         note_content.text = invoice['payment_terms']
 
+    # Notes obligatoires BR-FR-05 (réglementation française)
+    # PMT — Frais de recouvrement
+    note_pmt = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
+    note_pmt_content = ET.SubElement(note_pmt, _qname('ram', 'Content'))
+    note_pmt_content.text = (
+        "En cas de retard de paiement, une indemnité forfaitaire "
+        "pour frais de recouvrement de 40€ sera exigée "
+        "(Art. L441-10 et D441-5 du Code de commerce)."
+    )
+    note_pmt_code = ET.SubElement(note_pmt, _qname('ram', 'SubjectCode'))
+    note_pmt_code.text = 'PMT'
+
+    # PMD — Pénalités de retard
+    note_pmd = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
+    note_pmd_content = ET.SubElement(note_pmd, _qname('ram', 'Content'))
+    note_pmd_content.text = (
+        "En cas de retard de paiement, des pénalités de retard seront appliquées "
+        "au taux de 3 fois le taux d'intérêt légal en vigueur "
+        "(Art. L441-10 du Code de commerce)."
+    )
+    note_pmd_code = ET.SubElement(note_pmd, _qname('ram', 'SubjectCode'))
+    note_pmd_code.text = 'PMD'
+
+    # AAB — Escompte
+    note_aab = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
+    note_aab_content = ET.SubElement(note_aab, _qname('ram', 'Content'))
+    note_aab_content.text = "Pas d'escompte pour paiement anticipé."
+    note_aab_code = ET.SubElement(note_aab, _qname('ram', 'SubjectCode'))
+    note_aab_code.text = 'AAB'
+
     # === SupplyChainTradeTransaction ===
     transaction = ET.SubElement(root, _qname('rsm', 'SupplyChainTradeTransaction'))
 
@@ -237,11 +267,11 @@ def generate_facturx_xml(data: dict) -> str:
     seller_name = ET.SubElement(seller, _qname('ram', 'Name'))
     seller_name.text = emitter['name']
 
-    # Identifiants légaux du vendeur
+    # Identifiants légaux du vendeur (SIREN — 9 chiffres, BR-FR-10)
     seller_legal = ET.SubElement(seller, _qname('ram', 'SpecifiedLegalOrganization'))
-    seller_siret = ET.SubElement(seller_legal, _qname('ram', 'ID'))
-    seller_siret.set('schemeID', '0002')  # SIRET
-    seller_siret.text = emitter['siret']
+    seller_siren = ET.SubElement(seller_legal, _qname('ram', 'ID'))
+    seller_siren.set('schemeID', '0002')
+    seller_siren.text = emitter['siren']
 
     # Adresse du vendeur (ordre important pour validation XSD: LineOne, CityName, CountryID)
     seller_addr = ET.SubElement(seller, _qname('ram', 'PostalTradeAddress'))
@@ -251,6 +281,12 @@ def generate_facturx_xml(data: dict) -> str:
     seller_city.text = emitter['city']
     seller_country = ET.SubElement(seller_addr, _qname('ram', 'CountryID'))
     seller_country.text = emitter['country_code']
+
+    # Adresse électronique du vendeur (BT-34, BR-FR-13)
+    seller_endpoint = ET.SubElement(seller, _qname('ram', 'URIUniversalCommunication'))
+    seller_endpoint_uri = ET.SubElement(seller_endpoint, _qname('ram', 'URIID'))
+    seller_endpoint_uri.set('schemeID', '0009')
+    seller_endpoint_uri.text = emitter['siret']
 
     # TVA du vendeur
     if emitter.get('vat_number'):
@@ -270,7 +306,7 @@ def generate_facturx_xml(data: dict) -> str:
     buyer_siret.set('schemeID', '0002')
     buyer_siret.text = invoice['recipient_siret']
 
-    # Adresse de l'acheteur (profil BASIC: LineOne, CityName, CountryID uniquement)
+    # Adresse de l'acheteur (LineOne, CityName, CountryID)
     if invoice.get('recipient_address') or invoice.get('recipient_city'):
         buyer_addr = ET.SubElement(buyer, _qname('ram', 'PostalTradeAddress'))
 
@@ -287,6 +323,12 @@ def generate_facturx_xml(data: dict) -> str:
         # CountryID (pays)
         buyer_country = ET.SubElement(buyer_addr, _qname('ram', 'CountryID'))
         buyer_country.text = invoice['recipient_country_code']
+
+    # Adresse électronique de l'acheteur (BT-49, BR-FR-12)
+    buyer_endpoint = ET.SubElement(buyer, _qname('ram', 'URIUniversalCommunication'))
+    buyer_endpoint_uri = ET.SubElement(buyer_endpoint, _qname('ram', 'URIID'))
+    buyer_endpoint_uri.set('schemeID', '0009')
+    buyer_endpoint_uri.text = invoice['recipient_siret']
 
     # TVA de l'acheteur
     if invoice.get('recipient_vat_number'):
