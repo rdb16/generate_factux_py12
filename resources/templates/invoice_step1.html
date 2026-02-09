@@ -522,8 +522,8 @@
                         <div class="search-dropdown" id="searchDropdown"></div>
                     </div>
 
-                    <button type="button" class="btn-new-client" id="btnNewClient">
-                        Nouveau client
+                    <button type="button" class="btn-new-client active" id="btnNewClient" style="display: none;">
+                        Nouveau client (enregistrer en base)
                     </button>
                     <input type="hidden" name="save_new_client" id="saveNewClient" value="0" />
                     {% endif %}
@@ -774,8 +774,9 @@
                             }
                         }
                     }
-                    // Client existant : pas besoin de sauvegarder
+                    // Client existant : cacher le bouton "Nouveau client"
                     saveNewClientInput.value = "0";
+                    btnNewClient.style.display = "none";
                     btnNewClient.classList.remove("active");
                     dropdown.style.display = "none";
                     searchInput.value = "";
@@ -811,8 +812,17 @@
                         dropdown.innerHTML =
                             '<div class="search-no-results">Aucun client trouve</div>';
                         dropdown.style.display = "block";
+                        // Afficher le bouton pour enregistrer un nouveau client
+                        btnNewClient.style.display = "inline-block";
+                        btnNewClient.classList.add("active");
+                        saveNewClientInput.value = "1";
                         return;
                     }
+
+                    // Des résultats trouvés : cacher le bouton "Nouveau client"
+                    btnNewClient.style.display = "none";
+                    btnNewClient.classList.remove("active");
+                    saveNewClientInput.value = "0";
 
                     results.forEach((client) => {
                         const item = document.createElement("div");
@@ -857,10 +867,11 @@
                     }
                 });
 
-                // Bouton "Nouveau client"
+                // Clic sur "Nouveau client" : désactiver l'enregistrement
                 btnNewClient.addEventListener("click", function () {
-                    const isActive = this.classList.toggle("active");
-                    saveNewClientInput.value = isActive ? "1" : "0";
+                    this.style.display = "none";
+                    this.classList.remove("active");
+                    saveNewClientInput.value = "0";
                 });
             })();
             {% endif %}
