@@ -622,7 +622,7 @@ def generate_invoice():
             pdf_file=pdf_bytes,
             xml=xml_content.encode('utf-8'),
             flavor='factur-x',
-            level='basic',
+            level='en16931',
             check_xsd=True,
             pdf_metadata={
                 'author': EMITTER['name'],
