@@ -253,7 +253,7 @@ Generate-FacturX-PY/
 
 ### Conformité Factur-X
 - ✅ Norme EN 16931 (facturation électronique européenne)
-- ✅ Profil Factur-X EN16931 (guideline `urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:EN16931`)
+- ✅ Profil Factur-X EN16931 (guideline `urn:cen.eu:en16931:2017`)
 - ✅ Structure CrossIndustryInvoice (CII)
 - ✅ Validation XSD officielle
 - ✅ Conformité Schematron (PEPPOL-EN16931)
@@ -263,7 +263,7 @@ Generate-FacturX-PY/
 
 ### Profil de conformité
 
-**URN :** `urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:EN16931`
+**URN :** `urn:cen.eu:en16931:2017`
 
 Le profil EN16931 (aussi appelé Comfort) est le profil de conformité complet à la norme européenne EN 16931 (Factur-X 1.07, CII D22B).
 

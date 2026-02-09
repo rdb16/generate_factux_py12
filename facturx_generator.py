@@ -141,7 +141,7 @@ def generate_facturx_xml(data: dict) -> str:
 
     guideline = ET.SubElement(context, _qname('ram', 'GuidelineSpecifiedDocumentContextParameter'))
     guideline_id = ET.SubElement(guideline, _qname('ram', 'ID'))
-    guideline_id.text = 'urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:EN16931'
+    guideline_id.text = 'urn:cen.eu:en16931:2017'
 
     # === ExchangedDocument ===
     doc = ET.SubElement(root, _qname('rsm', 'ExchangedDocument'))
