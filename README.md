@@ -127,12 +127,26 @@ Le XML généré inclut `ExemptionReason` (BT-120) et `ExemptionReasonCode` (BT-
 
 ## Base de données PostgreSQL (optionnel)
 
-Si `is_db_pg=True`, créer `.env` ou `.env.local` :
+La base doit être créée localement au préalable (ex: `factur_x`). Les scripts SQL pour créer les tables sont dans `resources/sql/` :
+
+```bash
+# Créer la base
+createdb factur_x
+
+# Créer les tables
+psql -d factur_x -f resources/sql/create_table_sent_invoice.sql
+psql -d factur_x -f resources/sql/create_table_client_metadata.sql
+
+# (optionnel) Insérer des clients de test
+psql -d factur_x -f resources/sql/insert_mock_client_metadata.sql
+```
+
+Puis configurer `is_db_pg=True` dans `resources/config/ma-conf.txt` et créer `.env` ou `.env.local` :
 
 ```env
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=facturx
+DB_NAME=factur_x
 DB_USER=postgres
 DB_PASSWORD=votre_mot_de_passe
 ```
