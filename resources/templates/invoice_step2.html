@@ -722,6 +722,7 @@
                                         name="lines[0][description]"
                                         placeholder="Description du produit ou service"
                                         style="flex: 1"
+                                        oninput="updateSubmitButton()"
                                     />
                                     <button
                                         type="button"
@@ -885,9 +886,11 @@
                         border-top: 1px solid #e2e8f0;
                     "
                 >
-                    <button type="submit" class="btn btn-primary">
-                        Generer la facture Factur-X
-                    </button>
+                    <span id="submitWrapper" style="display: inline-block; cursor: not-allowed;" title="Veuillez remplir au moins une ligne complete (description, quantite, prix unitaire)">
+                        <button type="submit" class="btn btn-primary" id="btnSubmit" disabled style="pointer-events: none; opacity: 0.5;">
+                            Generer la facture Factur-X
+                        </button>
+                    </span>
                 </div>
             </form>
         </div>
@@ -1055,6 +1058,7 @@
                                     name="lines[${newIndex}][description]"
                                     placeholder="Description du produit ou service"
                                     style="flex: 1;"
+                                    oninput="updateSubmitButton()"
                                 />
                                 <button type="button" class="discount-toggle" onclick="toggleDiscount(this)">+ Rabais</button>
                             </div>
@@ -1220,6 +1224,35 @@
                 updateTotals();
             }
 
+            function hasAtLeastOneValidLine() {
+                const wrappers = document.querySelectorAll(".line-wrapper");
+                for (const wrapper of wrappers) {
+                    const desc = (wrapper.querySelector('[name*="description"]').value || "").trim();
+                    const qty = parseFloat(wrapper.querySelector('[name*="quantity"]').value) || 0;
+                    const price = parseFloat(wrapper.querySelector('[name*="unit_price_ht"]').value) || 0;
+                    if (desc && qty > 0 && price > 0) return true;
+                }
+                return false;
+            }
+
+            function updateSubmitButton() {
+                const btn = document.getElementById("btnSubmit");
+                const wrap = document.getElementById("submitWrapper");
+                if (hasAtLeastOneValidLine()) {
+                    btn.disabled = false;
+                    btn.style.pointerEvents = "";
+                    btn.style.opacity = "1";
+                    wrap.style.cursor = "";
+                    wrap.title = "";
+                } else {
+                    btn.disabled = true;
+                    btn.style.pointerEvents = "none";
+                    btn.style.opacity = "0.5";
+                    wrap.style.cursor = "not-allowed";
+                    wrap.title = "Veuillez remplir au moins une ligne complete (description, quantite, prix unitaire)";
+                }
+            }
+
             function updateTotals() {
                 let totalHt = 0;
                 let totalVat = 0;
@@ -1331,6 +1364,8 @@
                     totalVat.toFixed(2) + " " + currency;
                 document.getElementById("total-ttc").textContent =
                     totalTtc.toFixed(2) + " " + currency;
+
+                updateSubmitButton();
             }
 
             function clearErrors() {
