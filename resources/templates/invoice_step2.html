@@ -1,104 +1,25 @@
-<!doctype html>
-<html>
-    <head>
-        <title>Nouvelle facture - Lignes</title>
-        <meta charset="UTF-8" />
-        <style>
-            * {
-                box-sizing: border-box;
-            }
-            body {
-                font-family:
-                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                    sans-serif;
-                max-width: 1100px;
-                margin: 0 auto;
-                padding: 40px 20px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-            }
-            .container {
-                background: white;
-                border-radius: 12px;
-                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-                overflow: hidden;
-            }
-            .header {
-                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                color: white;
-                padding: 24px 30px;
-                display: flex;
-                align-items: center;
-                gap: 20px;
-            }
-            .header-logo {
-                width: 50px;
-                height: 50px;
-                object-fit: contain;
-                border-radius: 8px;
-                background: white;
-                padding: 4px;
-            }
-            .header-text h1 {
-                margin: 0;
-                font-size: 22px;
-                font-weight: 600;
-            }
-            .header-text .emitter {
-                opacity: 0.8;
-                font-size: 13px;
-            }
-            .steps {
-                display: flex;
-                justify-content: center;
-                padding: 16px 30px;
-                background: #f8fafc;
-                border-bottom: 1px solid #e2e8f0;
-            }
-            .step {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                padding: 0 20px;
-                color: #a0aec0;
-                font-size: 14px;
-            }
-            .step.completed {
-                color: #38a169;
-            }
-            .step.active {
-                color: #667eea;
-                font-weight: 600;
-            }
-            .step .number {
-                width: 26px;
-                height: 26px;
-                border-radius: 50%;
-                background: #e2e8f0;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 12px;
-                font-weight: 600;
-            }
-            .step.completed .number {
-                background: #38a169;
-                color: white;
-            }
-            .step.active .number {
-                background: #667eea;
-                color: white;
-            }
-            .step-divider {
-                width: 40px;
-                height: 2px;
-                background: #e2e8f0;
-                margin: 0 10px;
-            }
-            .step.completed + .step-divider {
-                background: #38a169;
-            }
+{% extends "base.html" %}
 
+{% block title %}Nouvelle facture - Lignes{% endblock %}
+
+{% block steps %}
+                <div class="step completed">
+                    <span class="number">&#10003;</span>
+                    Informations
+                </div>
+                <div class="step-divider"></div>
+                <div class="step active">
+                    <span class="number">2</span>
+                    Lignes
+                </div>
+                <div class="step-divider"></div>
+                <div class="step">
+                    <span class="number">3</span>
+                    Recapitulatif
+                </div>
+{% endblock %}
+
+{% block extra_styles %}
             /* Resume */
             .summary {
                 background: #f8fafc;
@@ -316,7 +237,7 @@
                 color: #c53030;
             }
 
-            /* TVA 0% : catégorie et exonération */
+            /* TVA 0% : categorie et exoneration */
             .vat-extra-row {
                 display: none;
                 padding: 8px 16px 12px 16px;
@@ -364,30 +285,6 @@
                 justify-content: space-between;
                 align-items: center;
                 margin-top: 20px;
-            }
-            .btn {
-                padding: 12px 24px;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: 500;
-                transition: all 0.2s;
-            }
-            .btn-secondary {
-                background: #edf2f7;
-                color: #4a5568;
-            }
-            .btn-secondary:hover {
-                background: #e2e8f0;
-            }
-            .btn-primary {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-            }
-            .btn-primary:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
             }
 
             /* Recapitulatif et Totaux */
@@ -494,24 +391,6 @@
             }
 
             /* Messages */
-            .errors-container {
-                background: #fff5f5;
-                border-left: 4px solid #e53e3e;
-                color: #c53030;
-                padding: 16px 20px;
-                margin: 20px 30px;
-                border-radius: 0 8px 8px 0;
-                display: none;
-            }
-            .errors-container h4 {
-                margin: 0 0 8px 0;
-                font-size: 14px;
-            }
-            .errors-container ul {
-                margin: 0;
-                padding-left: 20px;
-                font-size: 13px;
-            }
             .success-container {
                 background: #f0fff4;
                 border-left: 4px solid #38a169;
@@ -520,12 +399,6 @@
                 margin: 20px 30px;
                 border-radius: 0 8px 8px 0;
                 display: none;
-            }
-
-            .field-error {
-                color: #e53e3e;
-                font-size: 12px;
-                margin-top: 4px;
             }
 
             @media (max-width: 1200px) {
@@ -545,35 +418,9 @@
                     grid-column: 1 / -1;
                 }
             }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <img src="{{ logo_path }}" alt="Logo" class="header-logo" />
-                <div class="header-text">
-                    <h1>Nouvelle facture</h1>
-                    <div class="emitter">{{ emitter.name }}{% if emitter.legal_form %} - {{ emitter.legal_form }}{% endif %}</div>
-                </div>
-            </div>
+{% endblock %}
 
-            <div class="steps">
-                <div class="step completed">
-                    <span class="number">&#10003;</span>
-                    Informations
-                </div>
-                <div class="step-divider"></div>
-                <div class="step active">
-                    <span class="number">2</span>
-                    Lignes
-                </div>
-                <div class="step-divider"></div>
-                <div class="step">
-                    <span class="number">3</span>
-                    Recapitulatif
-                </div>
-            </div>
-
+{% block before_content %}
             <div class="summary">
                 <div class="summary-section">
                     <h3>
@@ -691,12 +538,9 @@
                     </div>
                 </div>
             </div>
+{% endblock %}
 
-            <div id="errorsContainer" class="errors-container">
-                <h4>Veuillez corriger les erreurs suivantes</h4>
-                <ul id="errorsList"></ul>
-            </div>
-
+{% block content %}
             <div id="successContainer" class="success-container">
                 <p id="successMessage"></p>
             </div>
@@ -893,13 +737,14 @@
                     </span>
                 </div>
             </form>
-        </div>
+{% endblock %}
 
+{% block scripts %}
         <script>
             let lineCount = 1;
             const currency = "{{ invoice.currency_code }}";
 
-            // Codes VATEX par catégorie
+            // Codes VATEX par categorie
             const VATEX_CODES = {
                 'E': [
                     { code: 'VATEX-EU-132', label: "Activites d'interet public (art. 132)" },
@@ -931,13 +776,11 @@
 
                 if (rate === 0) {
                     vatExtra.classList.add('visible');
-                    // Reset à Z par défaut
                     const catSelect = wrapper.querySelector('.category-select');
                     catSelect.value = 'Z';
                     onCategoryChange(catSelect);
                 } else {
                     vatExtra.classList.remove('visible');
-                    // Reset les champs cachés
                     wrapper.querySelector('.category-select').value = 'Z';
                     const vatexSelect = wrapper.querySelector('.vatex-select');
                     vatexSelect.style.display = 'none';
@@ -961,7 +804,6 @@
                     reasonInput.style.display = 'none';
                     reasonInput.value = '';
                 } else {
-                    // Remplir le dropdown VATEX selon la catégorie
                     vatexSelect.innerHTML = '<option value="">-- Code VATEX --</option>';
                     const codes = VATEX_CODES[category] || [];
                     codes.forEach(item => {
@@ -1034,7 +876,6 @@
             }
 
             function addLine() {
-                // Valider les lignes existantes avant d'en ajouter une nouvelle
                 document
                     .querySelectorAll(".line-wrapper input.error")
                     .forEach((el) => el.classList.remove("error"));
@@ -1165,7 +1006,6 @@
 
                 updateLineTotal(discountInput);
 
-                // Masquer la ligne de rabais
                 const discountRow = wrapper.querySelector(".discount-row");
                 discountRow.classList.remove("visible");
                 wrapper.querySelector(".discount-toggle").textContent =
@@ -1194,7 +1034,6 @@
 
                 const grossHt = qty * price;
 
-                // Calcul du rabais
                 let discountAmount = 0;
                 if (discountValue > 0) {
                     if (discountType === "percent") {
@@ -1206,11 +1045,9 @@
 
                 const netHt = Math.max(0, grossHt - discountAmount);
 
-                // Affichage du total HT net
                 wrapper.querySelector(`[data-line="${lineId}"]`).textContent =
                     netHt.toFixed(2) + " " + currency;
 
-                // Affichage du montant du rabais
                 const discountDisplay = wrapper.querySelector(
                     `[data-discount="${lineId}"]`,
                 );
@@ -1257,7 +1094,6 @@
                 let totalHt = 0;
                 let totalVat = 0;
 
-                // Objet pour regrouper par taux + catégorie de TVA
                 const vatByRate = {};
 
                 document
@@ -1288,7 +1124,6 @@
                             '[name*="discount_type"]',
                         ).value;
 
-                        // Catégorie TVA
                         let category = 'S';
                         if (vatRate === 0) {
                             const catSelect = wrapper.querySelector('.category-select');
@@ -1297,7 +1132,6 @@
 
                         const grossHt = qty * price;
 
-                        // Calcul du rabais
                         let discountAmount = 0;
                         if (discountValue > 0) {
                             if (discountType === "percent") {
@@ -1314,7 +1148,6 @@
                         totalHt += netHt;
                         totalVat += lineVat;
 
-                        // Regrouper par taux + catégorie
                         const rateKey = vatRate + '_' + category;
                         if (netHt > 0) {
                             if (!vatByRate[rateKey]) {
@@ -1332,7 +1165,6 @@
 
                 const totalTtc = totalHt + totalVat;
 
-                // Mise a jour du tableau recapitulatif TVA
                 const vatBody = document.getElementById("vat-breakdown-body");
                 const rates = Object.keys(vatByRate).sort(
                     (a, b) => vatByRate[b].rate - vatByRate[a].rate,
@@ -1366,51 +1198,6 @@
                     totalTtc.toFixed(2) + " " + currency;
 
                 updateSubmitButton();
-            }
-
-            function clearErrors() {
-                document.getElementById("errorsContainer").style.display =
-                    "none";
-                document.getElementById("errorsList").innerHTML = "";
-                document.getElementById("successContainer").style.display =
-                    "none";
-                document
-                    .querySelectorAll(".error")
-                    .forEach((el) => el.classList.remove("error"));
-                document
-                    .querySelectorAll(".field-error")
-                    .forEach((el) => (el.textContent = ""));
-            }
-
-            function displayErrors(errors) {
-                clearErrors();
-                if (!errors || errors.length === 0) return;
-
-                const container = document.getElementById("errorsContainer");
-                const list = document.getElementById("errorsList");
-
-                errors.forEach((error) => {
-                    const li = document.createElement("li");
-                    li.textContent = error.message;
-                    list.appendChild(li);
-
-                    const input = document.querySelector(
-                        `[name="${error.field}"]`,
-                    );
-                    if (input) {
-                        input.classList.add("error");
-                        const lineContainer = input.closest(".line");
-                        if (lineContainer) {
-                            lineContainer.classList.add("error");
-                        }
-                    }
-                });
-
-                container.style.display = "block";
-                container.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
-                });
             }
 
             function displaySuccess(message) {
@@ -1451,5 +1238,4 @@
                 }
             };
         </script>
-    </body>
-</html>
+{% endblock %}
