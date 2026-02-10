@@ -9,6 +9,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
 
+from invoice_calc import calculate_line_totals, calculate_invoice_totals
+
 
 # Namespaces Factur-X / ZUGFeRD (CII D22B — URIs identiques à D16B)
 NAMESPACES = {
@@ -53,79 +55,55 @@ def _format_date(date_str: str) -> str:
         return date_str.replace('-', '')
 
 
-def _calculate_line_totals(line: dict) -> dict:
-    """Calcule les totaux d'une ligne avec rabais."""
-    qty = Decimal(str(line.get('quantity', 0) or 0))
-    unit_price = Decimal(str(line.get('unit_price_ht', 0) or 0))
-    vat_rate = Decimal(str(line.get('vat_rate', 20) or 20))
-    discount_value = Decimal(str(line.get('discount_value', 0) or 0))
-    discount_type = line.get('discount_type', 'percent')
-
-    gross_ht = qty * unit_price
-
-    if discount_value > 0:
-        if discount_type == 'percent':
-            discount_amount = gross_ht * (discount_value / 100)
-        else:
-            discount_amount = discount_value
-    else:
-        discount_amount = Decimal('0')
-
-    net_ht = max(Decimal('0'), gross_ht - discount_amount)
-    vat_amount = net_ht * (vat_rate / 100)
-
-    # Catégorie TVA : S si taux > 0, sinon la catégorie fournie (défaut Z)
-    if vat_rate > 0:
-        vat_category = 'S'
-    else:
-        vat_category = line.get('vat_category', '').strip() or 'Z'
-
-    return {
-        'quantity': qty,
-        'unit_price': unit_price,
-        'gross_ht': gross_ht,
-        'discount_amount': discount_amount,
-        'net_ht': net_ht,
-        'vat_rate': vat_rate,
-        'vat_amount': vat_amount,
-        'total_ttc': net_ht + vat_amount,
-        'vat_category': vat_category,
-        'vat_exemption_code': line.get('vat_exemption_code', '').strip(),
-        'vat_exemption_reason': line.get('vat_exemption_reason', '').strip(),
-    }
+# Alias rétrocompatibles (app.py les importait depuis ce module)
+_calculate_line_totals = calculate_line_totals
+_calculate_invoice_totals = calculate_invoice_totals
 
 
-def _calculate_invoice_totals(lines: list[dict]) -> dict:
-    """Calcule les totaux globaux de la facture."""
-    total_ht = Decimal('0')
-    total_vat = Decimal('0')
-    vat_breakdown = {}
+def _add_postal_address(parent, address: str, city: str, postal_code: str = None, country_code: str = 'FR'):
+    """Ajoute un bloc PostalTradeAddress (LineOne, PostcodeCode, CityName, CountryID)."""
+    addr = ET.SubElement(parent, _qname('ram', 'PostalTradeAddress'))
+    if address:
+        line_one = ET.SubElement(addr, _qname('ram', 'LineOne'))
+        line_one.text = address
+    if postal_code:
+        postcode = ET.SubElement(addr, _qname('ram', 'PostcodeCode'))
+        postcode.text = postal_code
+    if city:
+        city_el = ET.SubElement(addr, _qname('ram', 'CityName'))
+        city_el.text = city
+    country = ET.SubElement(addr, _qname('ram', 'CountryID'))
+    country.text = country_code
+    return addr
 
-    for line in lines:
-        totals = _calculate_line_totals(line)
-        total_ht += totals['net_ht']
-        total_vat += totals['vat_amount']
 
-        # Clé de regroupement : rate + catégorie (distingue les catégories à 0%)
-        rate_key = f"{totals['vat_rate']}_{totals['vat_category']}"
-        if rate_key not in vat_breakdown:
-            vat_breakdown[rate_key] = {
-                'rate': totals['vat_rate'],
-                'vat_category': totals['vat_category'],
-                'vat_exemption_code': totals['vat_exemption_code'],
-                'vat_exemption_reason': totals['vat_exemption_reason'],
-                'base_ht': Decimal('0'),
-                'vat_amount': Decimal('0'),
-            }
-        vat_breakdown[rate_key]['base_ht'] += totals['net_ht']
-        vat_breakdown[rate_key]['vat_amount'] += totals['vat_amount']
+def _add_tax_registration(parent, vat_number: str):
+    """Ajoute un bloc SpecifiedTaxRegistration (schemeID=VA)."""
+    tax_reg = ET.SubElement(parent, _qname('ram', 'SpecifiedTaxRegistration'))
+    tax_id = ET.SubElement(tax_reg, _qname('ram', 'ID'))
+    tax_id.set('schemeID', 'VA')
+    tax_id.text = vat_number
+    return tax_reg
 
-    return {
-        'total_ht': total_ht,
-        'total_vat': total_vat,
-        'total_ttc': total_ht + total_vat,
-        'vat_breakdown': vat_breakdown,
-    }
+
+def _add_uri_endpoint(parent, siret: str):
+    """Ajoute un bloc URIUniversalCommunication (schemeID=0009)."""
+    endpoint = ET.SubElement(parent, _qname('ram', 'URIUniversalCommunication'))
+    uri = ET.SubElement(endpoint, _qname('ram', 'URIID'))
+    uri.set('schemeID', '0009')
+    uri.text = siret
+    return endpoint
+
+
+def _add_note(parent, text: str, subject_code: str = None):
+    """Ajoute un bloc IncludedNote avec contenu et code optionnel."""
+    note = ET.SubElement(parent, _qname('ram', 'IncludedNote'))
+    content = ET.SubElement(note, _qname('ram', 'Content'))
+    content.text = text
+    if subject_code:
+        code = ET.SubElement(note, _qname('ram', 'SubjectCode'))
+        code.text = subject_code
+    return note
 
 
 def generate_facturx_xml(data: dict) -> str:
@@ -144,7 +122,7 @@ def generate_facturx_xml(data: dict) -> str:
     invoice = data['invoice']
     lines = data['lines']
 
-    invoice_totals = _calculate_invoice_totals(lines)
+    invoice_totals = calculate_invoice_totals(lines)
 
     # Racine
     root = ET.Element(_qname('rsm', 'CrossIndustryInvoice'))
@@ -172,48 +150,31 @@ def generate_facturx_xml(data: dict) -> str:
 
     # Notes (conditions de paiement)
     if invoice.get('payment_terms'):
-        note = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
-        note_content = ET.SubElement(note, _qname('ram', 'Content'))
-        note_content.text = invoice['payment_terms']
+        _add_note(doc, invoice['payment_terms'])
 
     # Notes obligatoires BR-FR-05 (réglementation française)
-    # PMT — Frais de recouvrement (texte configurable via ma-conf.txt)
     pmt_default = (
         "En cas de retard de paiement, une indemnité forfaitaire "
         "pour frais de recouvrement de 40€ sera exigée "
         "(Art. L441-10 et D441-5 du Code de commerce)."
     )
-    note_pmt = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
-    note_pmt_content = ET.SubElement(note_pmt, _qname('ram', 'Content'))
-    note_pmt_content.text = emitter.get('pmt_text') or pmt_default
-    note_pmt_code = ET.SubElement(note_pmt, _qname('ram', 'SubjectCode'))
-    note_pmt_code.text = 'PMT'
+    _add_note(doc, emitter.get('pmt_text') or pmt_default, 'PMT')
 
-    # PMD — Pénalités de retard (texte configurable via ma-conf.txt)
     pmd_default = (
         "En cas de retard de paiement, des pénalités de retard seront appliquées "
         "au taux de 3 fois le taux d'intérêt légal en vigueur "
         "(Art. L441-10 du Code de commerce)."
     )
-    note_pmd = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
-    note_pmd_content = ET.SubElement(note_pmd, _qname('ram', 'Content'))
-    note_pmd_content.text = emitter.get('pmd_text') or pmd_default
-    note_pmd_code = ET.SubElement(note_pmd, _qname('ram', 'SubjectCode'))
-    note_pmd_code.text = 'PMD'
+    _add_note(doc, emitter.get('pmd_text') or pmd_default, 'PMD')
 
-    # AAB — Escompte
-    note_aab = ET.SubElement(doc, _qname('ram', 'IncludedNote'))
-    note_aab_content = ET.SubElement(note_aab, _qname('ram', 'Content'))
-    note_aab_content.text = "Pas d'escompte pour paiement anticipé."
-    note_aab_code = ET.SubElement(note_aab, _qname('ram', 'SubjectCode'))
-    note_aab_code.text = 'AAB'
+    _add_note(doc, "Pas d'escompte pour paiement anticipé.", 'AAB')
 
     # === SupplyChainTradeTransaction ===
     transaction = ET.SubElement(root, _qname('rsm', 'SupplyChainTradeTransaction'))
 
     # --- Lignes de facture ---
     for i, line in enumerate(lines, start=1):
-        line_totals = _calculate_line_totals(line)
+        line_totals = calculate_line_totals(line)
 
         line_item = ET.SubElement(transaction, _qname('ram', 'IncludedSupplyChainTradeLineItem'))
 
@@ -288,27 +249,15 @@ def generate_facturx_xml(data: dict) -> str:
     seller_siren.set('schemeID', '0002')
     seller_siren.text = emitter['siren']
 
-    # Adresse du vendeur (ordre important pour validation XSD: LineOne, CityName, CountryID)
-    seller_addr = ET.SubElement(seller, _qname('ram', 'PostalTradeAddress'))
-    seller_line = ET.SubElement(seller_addr, _qname('ram', 'LineOne'))
-    seller_line.text = emitter['address']
-    seller_city = ET.SubElement(seller_addr, _qname('ram', 'CityName'))
-    seller_city.text = emitter['city']
-    seller_country = ET.SubElement(seller_addr, _qname('ram', 'CountryID'))
-    seller_country.text = emitter['country_code']
+    # Adresse du vendeur (BT-35..BT-40)
+    _add_postal_address(seller, emitter['address'], emitter['city'], None, emitter['country_code'])
 
     # Adresse électronique du vendeur (BT-34, BR-FR-13)
-    seller_endpoint = ET.SubElement(seller, _qname('ram', 'URIUniversalCommunication'))
-    seller_endpoint_uri = ET.SubElement(seller_endpoint, _qname('ram', 'URIID'))
-    seller_endpoint_uri.set('schemeID', '0009')
-    seller_endpoint_uri.text = emitter['siret']
+    _add_uri_endpoint(seller, emitter['siret'])
 
     # TVA du vendeur
     if emitter.get('vat_number'):
-        seller_tax = ET.SubElement(seller, _qname('ram', 'SpecifiedTaxRegistration'))
-        seller_vat = ET.SubElement(seller_tax, _qname('ram', 'ID'))
-        seller_vat.set('schemeID', 'VA')
-        seller_vat.text = emitter['vat_number']
+        _add_tax_registration(seller, emitter['vat_number'])
 
     # Acheteur (client)
     buyer = ET.SubElement(agreement, _qname('ram', 'BuyerTradeParty'))
@@ -321,36 +270,22 @@ def generate_facturx_xml(data: dict) -> str:
     buyer_siret.set('schemeID', '0002')
     buyer_siret.text = invoice['recipient_siret']
 
-    # Adresse de l'acheteur (LineOne, CityName, CountryID)
+    # Adresse de l'acheteur (BT-50..BT-55)
     if invoice.get('recipient_address') or invoice.get('recipient_city'):
-        buyer_addr = ET.SubElement(buyer, _qname('ram', 'PostalTradeAddress'))
-
-        # LineOne (adresse)
-        if invoice.get('recipient_address'):
-            buyer_line = ET.SubElement(buyer_addr, _qname('ram', 'LineOne'))
-            buyer_line.text = invoice['recipient_address']
-
-        # CityName (ville)
-        if invoice.get('recipient_city'):
-            buyer_city = ET.SubElement(buyer_addr, _qname('ram', 'CityName'))
-            buyer_city.text = invoice['recipient_city']
-
-        # CountryID (pays)
-        buyer_country = ET.SubElement(buyer_addr, _qname('ram', 'CountryID'))
-        buyer_country.text = invoice['recipient_country_code']
+        _add_postal_address(
+            buyer,
+            invoice.get('recipient_address'),
+            invoice.get('recipient_city'),
+            None,
+            invoice['recipient_country_code'],
+        )
 
     # Adresse électronique de l'acheteur (BT-49, BR-FR-12)
-    buyer_endpoint = ET.SubElement(buyer, _qname('ram', 'URIUniversalCommunication'))
-    buyer_endpoint_uri = ET.SubElement(buyer_endpoint, _qname('ram', 'URIID'))
-    buyer_endpoint_uri.set('schemeID', '0009')
-    buyer_endpoint_uri.text = invoice['recipient_siret']
+    _add_uri_endpoint(buyer, invoice['recipient_siret'])
 
     # TVA de l'acheteur
     if invoice.get('recipient_vat_number'):
-        buyer_tax = ET.SubElement(buyer, _qname('ram', 'SpecifiedTaxRegistration'))
-        buyer_vat = ET.SubElement(buyer_tax, _qname('ram', 'ID'))
-        buyer_vat.set('schemeID', 'VA')
-        buyer_vat.text = invoice['recipient_vat_number']
+        _add_tax_registration(buyer, invoice['recipient_vat_number'])
 
     # Référence bon de commande
     if invoice.get('purchase_order_reference'):

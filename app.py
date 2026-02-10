@@ -10,8 +10,10 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from pathlib import Path
 import re
 
-from facturx_generator import generate_facturx_xml, _calculate_invoice_totals, _calculate_line_totals
+from facturx_generator import generate_facturx_xml
 from pdf_generator import generate_invoice_pdf
+from invoice_calc import calculate_line_totals, calculate_invoice_totals
+from db import get_db_connection, db_cursor, db_connection
 from facturx import generate_from_binary
 
 
@@ -175,20 +177,6 @@ def check_database_connection() -> bool:
         return False
 
 
-def get_db_connection():
-    """Ouvre et retourne une nouvelle connexion PostgreSQL."""
-    import psycopg2
-    conn = psycopg2.connect(
-        host=os.environ.get('DB_URL', 'localhost'),
-        port=os.environ.get('DB_PORT', '5432'),
-        dbname=os.environ.get('DB_NAME', 'k_factur_x'),
-        user=os.environ.get('DB_USER', 'postgres'),
-        password=os.environ.get('DB_PASS', ''),
-    )
-    conn.autocommit = False
-    return conn
-
-
 def is_auto_numbering() -> bool:
     """Indique si la numérotation automatique est active."""
     return CONFIG.get('is_db_pg') is True and CONFIG.get('is_num_facturx_auto') is True
@@ -283,9 +271,8 @@ def validate_startup_config() -> None:
         print(f"  - PostgreSQL: {'Activé' if CONFIG.get('is_db_pg') else 'Désactivé'}")
         if is_auto_numbering():
             try:
-                conn = get_db_connection()
-                next_num = get_next_invoice_number(conn)
-                conn.close()
+                with db_cursor() as (conn, _cursor):
+                    next_num = get_next_invoice_number(conn)
                 print(f"  - Numérotation auto: Activée (prochain: {next_num})")
             except Exception as e:
                 print(f"  - Numérotation auto: [ERREUR] {e}")
@@ -481,44 +468,20 @@ def index():
     is_db_pg = CONFIG.get('is_db_pg') is True
 
     if auto_numbering:
-        conn = None
         try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT invoice_num FROM sent_invoices ORDER BY created_at DESC LIMIT 1"
-            )
-            row = cursor.fetchone()
-            cursor.close()
-
-            now = datetime.now()
-            if row is None:
-                next_invoice_number = f"FAC-{now.year}-{now.month:02d}-0001"
-            else:
-                last_part = row[0].rsplit('-', 1)[-1]
-                next_int = int(last_part) + 1
-                next_invoice_number = f"FAC-{now.year}-{now.month:02d}-{next_int:04d}"
-
-            session['next_invoice_number'] = next_invoice_number
+            with db_cursor() as (conn, cursor):
+                next_invoice_number = get_next_invoice_number(conn)
+                session['next_invoice_number'] = next_invoice_number
         except Exception as e:
             print(f"[WARNING] Impossible de calculer le prochain numéro: {e}")
-        finally:
-            if conn and not conn.closed:
-                conn.close()
 
     if is_db_pg:
-        conn = None
         try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM client_metadata")
-            client_count = cursor.fetchone()[0]
-            cursor.close()
+            with db_cursor() as (_conn, cursor):
+                cursor.execute("SELECT COUNT(*) FROM client_metadata")
+                client_count = cursor.fetchone()[0]
         except Exception as e:
             print(f"[WARNING] Impossible de compter les clients: {e}")
-        finally:
-            if conn and not conn.closed:
-                conn.close()
 
     return render_template(
         'invoice_step1.html',
@@ -562,9 +525,8 @@ def submit_step1():
             data['invoice_number'] = stored_num
         else:
             try:
-                conn = get_db_connection()
-                data['invoice_number'] = get_next_invoice_number(conn)
-                conn.close()
+                with db_cursor() as (conn, _cursor):
+                    data['invoice_number'] = get_next_invoice_number(conn)
             except Exception as e:
                 return jsonify({'success': False, 'errors': [
                     {'field': 'invoice_number', 'message': f'Erreur numérotation auto: {e}'}
@@ -577,32 +539,26 @@ def submit_step1():
 
     # Insertion du nouveau client en base si demandé
     if CONFIG.get('is_db_pg') is True and request.form.get('save_new_client') == '1':
-        conn = None
         try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                """INSERT INTO client_metadata
-                   (recipient_name, cie_legal_form, recipient_siret, recipient_vat_number,
-                    recipient_address, recipient_postal_code, recipient_city, recipient_country_code)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                (
-                    data['recipient_name'],
-                    data['recipient_legal_form'],
-                    data['recipient_siret'],
-                    data['recipient_vat_number'],
-                    data['recipient_address'],
-                    data['recipient_postal_code'],
-                    data['recipient_city'],
-                    data['recipient_country_code'],
-                ),
-            )
-            conn.commit()
-            cursor.close()
+            with db_cursor(commit=True) as (_conn, cursor):
+                cursor.execute(
+                    """INSERT INTO client_metadata
+                       (recipient_name, cie_legal_form, recipient_siret, recipient_vat_number,
+                        recipient_address, recipient_postal_code, recipient_city, recipient_country_code)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        data['recipient_name'],
+                        data['recipient_legal_form'],
+                        data['recipient_siret'],
+                        data['recipient_vat_number'],
+                        data['recipient_address'],
+                        data['recipient_postal_code'],
+                        data['recipient_city'],
+                        data['recipient_country_code'],
+                    ),
+                )
             print(f"[OK] Client {data['recipient_name']} (SIRET {data['recipient_siret']}) enregistré en base")
         except Exception as e:
-            if conn and not conn.closed:
-                conn.rollback()
             # Violation de la contrainte UNIQUE sur recipient_siret
             err_msg = str(e).lower()
             if 'unique' in err_msg or 'duplicate' in err_msg or 'recipient_siret' in err_msg:
@@ -611,9 +567,6 @@ def submit_step1():
                      'message': f"Un client avec le SIRET {data['recipient_siret']} existe déjà dans la base. Utilisez la recherche pour le sélectionner."}
                 ]}), 400
             print(f"[WARNING] Échec de l'enregistrement du client: {e}")
-        finally:
-            if conn and not conn.closed:
-                conn.close()
 
     # Stocker en session
     session['invoice_data'] = data
@@ -631,31 +584,25 @@ def search_clients():
     if len(q) < 2:
         return jsonify({'results': []})
 
-    conn = None
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        like_pattern = f'%{q}%'
-        cursor.execute(
-            """SELECT id, recipient_name, cie_legal_form, recipient_siret,
-                      recipient_vat_number, recipient_address, recipient_postal_code,
-                      recipient_city, recipient_country_code
-               FROM client_metadata
-               WHERE recipient_name ILIKE %s OR recipient_siret ILIKE %s
-               ORDER BY recipient_name
-               LIMIT 10""",
-            (like_pattern, like_pattern),
-        )
-        columns = [desc[0] for desc in cursor.description]
-        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        cursor.close()
-        return jsonify({'results': results})
+        with db_cursor() as (_conn, cursor):
+            like_pattern = f'%{q}%'
+            cursor.execute(
+                """SELECT id, recipient_name, cie_legal_form, recipient_siret,
+                          recipient_vat_number, recipient_address, recipient_postal_code,
+                          recipient_city, recipient_country_code
+                   FROM client_metadata
+                   WHERE recipient_name ILIKE %s OR recipient_siret ILIKE %s
+                   ORDER BY recipient_name
+                   LIMIT 10""",
+                (like_pattern, like_pattern),
+            )
+            columns = [desc[0] for desc in cursor.description]
+            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            return jsonify({'results': results})
     except Exception as e:
         print(f"[ERROR] Recherche clients: {e}")
         return jsonify({'results': [], 'error': str(e)}), 500
-    finally:
-        if conn and not conn.closed:
-            conn.close()
 
 
 @app.route('/api/clients/count')
@@ -664,20 +611,14 @@ def count_clients():
     if CONFIG.get('is_db_pg') is not True:
         return jsonify({'error': 'Base de données non activée'}), 404
 
-    conn = None
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM client_metadata")
-        count = cursor.fetchone()[0]
-        cursor.close()
-        return jsonify({'count': count})
+        with db_cursor() as (_conn, cursor):
+            cursor.execute("SELECT COUNT(*) FROM client_metadata")
+            count = cursor.fetchone()[0]
+            return jsonify({'count': count})
     except Exception as e:
         print(f"[ERROR] Comptage clients: {e}")
         return jsonify({'count': 0, 'error': str(e)}), 500
-    finally:
-        if conn and not conn.closed:
-            conn.close()
 
 
 @app.route('/invoice/step2')
@@ -707,35 +648,29 @@ def show_step2():
     )
 
 
-def save_xml_to_storage(xml_content: str, invoice_number: str) -> str:
-    """Sauvegarde le XML dans le répertoire de stockage."""
-    xml_storage = CONFIG.get('xml_storage', './data/factures-xml')
-
-    # Nettoyer le numéro de facture pour le nom de fichier
-    safe_number = re.sub(r'[^\w\-]', '_', invoice_number)
-    filename = f"facturx-{safe_number}.xml"
-    filepath = Path(xml_storage) / filename
-
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(xml_content)
-
-    print(f"[OK] XML sauvegardé: {filepath}")
-    return str(filepath)
+def _sanitize_invoice_number(invoice_number: str) -> str:
+    """Nettoie le numéro de facture pour l'utiliser dans un nom de fichier."""
+    return re.sub(r'[^\w\-]', '_', invoice_number)
 
 
-def save_pdf_to_storage(pdf_bytes: bytes, invoice_number: str) -> str:
-    """Sauvegarde le PDF Factur-X dans le répertoire de stockage."""
-    pdf_storage = CONFIG.get('pdf_storage', './data/factures-pdf')
+def save_to_storage(content, invoice_number: str, storage_type: str) -> str:
+    """Sauvegarde un fichier (xml ou pdf) dans le répertoire de stockage."""
+    config_key = f'{storage_type}_storage'
+    defaults = {'xml': './data/factures-xml', 'pdf': './data/factures-pdf'}
+    storage_dir = CONFIG.get(config_key, defaults[storage_type])
 
-    # Nettoyer le numéro de facture pour le nom de fichier
-    safe_number = re.sub(r'[^\w\-]', '_', invoice_number)
-    filename = f"facturx-{safe_number}.pdf"
-    filepath = Path(pdf_storage) / filename
+    safe_number = _sanitize_invoice_number(invoice_number)
+    filename = f"facturx-{safe_number}.{storage_type}"
+    filepath = Path(storage_dir) / filename
 
-    with open(filepath, 'wb') as f:
-        f.write(pdf_bytes)
+    if storage_type == 'xml':
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+    else:
+        with open(filepath, 'wb') as f:
+            f.write(content)
 
-    print(f"[OK] PDF Factur-X sauvegardé: {filepath}")
+    print(f"[OK] {storage_type.upper()} sauvegardé: {filepath}")
     return str(filepath)
 
 
@@ -757,114 +692,117 @@ def generate_invoice():
         return jsonify({'success': False, 'errors': errors}), 400
 
     auto_num = is_auto_numbering()
-    conn = None
 
     try:
         # Si numérotation auto : ouvrir connexion, lock table, calcul du numéro
         if auto_num:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("LOCK TABLE sent_invoices IN EXCLUSIVE MODE")
-            cursor.close()
-            invoice_data['invoice_number'] = get_next_invoice_number(conn)
-            session['invoice_data'] = invoice_data
+            with db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("LOCK TABLE sent_invoices IN EXCLUSIVE MODE")
+                cursor.close()
+                invoice_data['invoice_number'] = get_next_invoice_number(conn)
+                session['invoice_data'] = invoice_data
 
-        # Préparer les données complètes pour la génération
-        full_data = {
-            'emitter': EMITTER,
-            'invoice': invoice_data,
-            'lines': lines,
-        }
+                # Génération dans la transaction (le lock empêche les doublons)
+                full_data = {
+                    'emitter': EMITTER,
+                    'invoice': invoice_data,
+                    'lines': lines,
+                }
+                pdf_bytes = generate_invoice_pdf(full_data, logo_path=LOGO_PATH)
+                xml_content = generate_facturx_xml(full_data)
+                facturx_pdf_bytes = generate_from_binary(
+                    pdf_file=pdf_bytes,
+                    xml=xml_content.encode('utf-8'),
+                    flavor='factur-x',
+                    level='en16931',
+                    check_xsd=True,
+                    pdf_metadata={
+                        'author': EMITTER['name'],
+                        'title': f"Facture {invoice_data['invoice_number']}",
+                        'subject': 'Facture électronique Factur-X',
+                    }
+                )
+                xml_filepath = save_to_storage(xml_content, invoice_data['invoice_number'], 'xml')
+                pdf_filepath = save_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'], 'pdf')
 
-        # 1. Générer le PDF de base avec ReportLab
-        pdf_bytes = generate_invoice_pdf(full_data, logo_path=LOGO_PATH)
-
-        # 2. Générer le XML Factur-X
-        xml_content = generate_facturx_xml(full_data)
-
-        # 3. Combiner le PDF et le XML avec factur-x
-        facturx_pdf_bytes = generate_from_binary(
-            pdf_file=pdf_bytes,
-            xml=xml_content.encode('utf-8'),
-            flavor='factur-x',
-            level='en16931',
-            check_xsd=True,
-            pdf_metadata={
-                'author': EMITTER['name'],
-                'title': f"Facture {invoice_data['invoice_number']}",
-                'subject': 'Facture électronique Factur-X',
+                insert_sent_invoice(
+                    conn,
+                    invoice_num=invoice_data['invoice_number'],
+                    company_name=invoice_data['recipient_name'],
+                    company_siret=invoice_data['recipient_siret'],
+                    xml_content=xml_content,
+                    pdf_path=pdf_filepath,
+                    invoice_date=invoice_data['issue_date'],
+                )
+                conn.commit()
+                print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
+        else:
+            # Pas de numérotation auto : génération simple
+            full_data = {
+                'emitter': EMITTER,
+                'invoice': invoice_data,
+                'lines': lines,
             }
-        )
-
-        # 4. Sauvegarder le XML et le PDF dans le répertoire de stockage
-        xml_filepath = save_xml_to_storage(xml_content, invoice_data['invoice_number'])
-        pdf_filepath = save_pdf_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'])
-
-        # 5. Insérer en base si auto_num (dans la même transaction que le lock)
-        if auto_num:
-            insert_sent_invoice(
-                conn,
-                invoice_num=invoice_data['invoice_number'],
-                company_name=invoice_data['recipient_name'],
-                company_siret=invoice_data['recipient_siret'],
-                xml_content=xml_content,
-                pdf_path=pdf_filepath,
-                invoice_date=invoice_data['issue_date'],
+            pdf_bytes = generate_invoice_pdf(full_data, logo_path=LOGO_PATH)
+            xml_content = generate_facturx_xml(full_data)
+            facturx_pdf_bytes = generate_from_binary(
+                pdf_file=pdf_bytes,
+                xml=xml_content.encode('utf-8'),
+                flavor='factur-x',
+                level='en16931',
+                check_xsd=True,
+                pdf_metadata={
+                    'author': EMITTER['name'],
+                    'title': f"Facture {invoice_data['invoice_number']}",
+                    'subject': 'Facture électronique Factur-X',
+                }
             )
-            conn.commit()
-            print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
-            conn.close()
-            conn = None
+            xml_filepath = save_to_storage(xml_content, invoice_data['invoice_number'], 'xml')
+            pdf_filepath = save_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'], 'pdf')
 
     except Exception as e:
-        if conn and not conn.closed:
-            conn.rollback()
-            conn.close()
         print(f"[ERROR] Échec de la génération Factur-X: {e}")
         return jsonify({
             'success': False,
             'errors': [{'field': '_form', 'message': f'Erreur lors de la génération: {str(e)}'}]
         }), 500
 
-    # 6. Insérer en base si is_db_pg activé mais pas auto_num
+    # Insérer en base si is_db_pg activé (sans auto_num, l'insertion auto_num est déjà faite)
     db_status = 'non_applicable'
     if auto_num:
         db_status = 'ok'
     elif CONFIG.get('is_db_pg') is True:
         try:
-            db_conn = get_db_connection()
-            insert_sent_invoice(
-                db_conn,
-                invoice_num=invoice_data['invoice_number'],
-                company_name=invoice_data['recipient_name'],
-                company_siret=invoice_data['recipient_siret'],
-                xml_content=xml_content,
-                pdf_path=pdf_filepath,
-                invoice_date=invoice_data['issue_date'],
-            )
-            db_conn.commit()
+            with db_cursor(commit=True) as (db_conn, _cursor):
+                insert_sent_invoice(
+                    db_conn,
+                    invoice_num=invoice_data['invoice_number'],
+                    company_name=invoice_data['recipient_name'],
+                    company_siret=invoice_data['recipient_siret'],
+                    xml_content=xml_content,
+                    pdf_path=pdf_filepath,
+                    invoice_date=invoice_data['issue_date'],
+                )
             print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
             db_status = 'ok'
         except Exception as e:
             print(f"[WARNING] Échec de l'insertion en base: {e}")
             db_status = 'erreur'
-        finally:
-            if db_conn and not db_conn.closed:
-                db_conn.close()
 
-    # 7. Calculer les totaux et construire le récapitulatif en session
+    # Calculer les totaux et construire le récapitulatif en session
     def _fmt(value):
         return str(Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
 
-    invoice_totals = _calculate_invoice_totals(lines)
+    invoice_totals = calculate_invoice_totals(lines)
 
-    safe_number = re.sub(r'[^\w\-]', '_', invoice_data['invoice_number'])
+    safe_number = _sanitize_invoice_number(invoice_data['invoice_number'])
     pdf_filename = f"facturx-{safe_number}.pdf"
     xml_filename = f"facturx-{safe_number}.xml"
 
     summary_lines = []
     for line in lines:
-        lt = _calculate_line_totals(line)
+        lt = calculate_line_totals(line)
         vat_display = str(lt['vat_rate'])
         if lt['vat_category'] != 'S':
             vat_display += f" ({lt['vat_category']})"
