@@ -1,0 +1,242 @@
+<!doctype html>
+<html>
+    <head>
+        <title>{% block title %}Factur-X{% endblock %}</title>
+        <meta charset="UTF-8" />
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
+                max-width: {% block body_max_width %}1100px{% endblock %};
+                margin: 0 auto;
+                padding: 40px 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+            }
+            .container {
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                overflow: hidden;
+            }
+            .header {
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                color: white;
+                padding: {% block header_padding %}24px 30px{% endblock %};
+                display: flex;
+                align-items: center;
+                gap: 20px;
+            }
+            .header-logo {
+                width: {% block header_logo_size %}50px{% endblock %};
+                height: {% block header_logo_size_h %}50px{% endblock %};
+                object-fit: contain;
+                border-radius: 8px;
+                background: white;
+                padding: 4px;
+            }
+            .header-text h1 {
+                margin: 0;
+                font-size: {% block header_title_size %}22px{% endblock %};
+                font-weight: 600;
+            }
+            .header-text .emitter {
+                opacity: 0.8;
+                font-size: 13px;
+            }
+            .steps {
+                display: flex;
+                justify-content: center;
+                padding: 16px 30px;
+                background: #f8fafc;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .step {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 0 20px;
+                color: #a0aec0;
+                font-size: 14px;
+            }
+            .step.completed {
+                color: #38a169;
+            }
+            .step.active {
+                color: #667eea;
+                font-weight: 600;
+            }
+            .step .number {
+                width: {% block step_number_size %}26px{% endblock %};
+                height: {% block step_number_size_h %}26px{% endblock %};
+                border-radius: 50%;
+                background: #e2e8f0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            .step.completed .number {
+                background: #38a169;
+                color: white;
+            }
+            .step.active .number {
+                background: #667eea;
+                color: white;
+            }
+            .step-divider {
+                width: 40px;
+                height: 2px;
+                background: #e2e8f0;
+                margin: 0 10px;
+            }
+            .step.completed + .step-divider {
+                background: #38a169;
+            }
+            .btn {
+                padding: 12px 24px;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s;
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .btn-secondary {
+                background: #edf2f7;
+                color: #4a5568;
+            }
+            .btn-secondary:hover {
+                background: #e2e8f0;
+            }
+            .btn-primary {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            .btn-primary:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            }
+            .errors-container {
+                background: #fff5f5;
+                border: 1px solid #feb2b2;
+                border-left: 4px solid #e53e3e;
+                color: #c53030;
+                padding: 16px 20px;
+                margin: 20px 30px;
+                border-radius: 0 8px 8px 0;
+                display: none;
+            }
+            .errors-container h4 {
+                margin: 0 0 8px 0;
+                font-size: 14px;
+            }
+            .errors-container ul {
+                margin: 0;
+                padding-left: 20px;
+                font-size: 13px;
+            }
+            .field-error {
+                color: #e53e3e;
+                font-size: 12px;
+                margin-top: 4px;
+            }
+            {% block extra_styles %}{% endblock %}
+
+            @media (max-width: 600px) {
+                body {
+                    padding: 20px 10px;
+                }
+                {% block responsive_styles %}{% endblock %}
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <img src="{{ logo_path }}" alt="Logo" class="header-logo" />
+                <div class="header-text">
+                    <h1>{% block header_title %}Nouvelle facture{% endblock %}</h1>
+                    <div class="emitter">
+                        {{ emitter.name }}{% if emitter.legal_form %} - {{ emitter.legal_form }}{% endif %}{% block header_extra %}{% endblock %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="steps">
+                {% block steps %}
+                <div class="step">
+                    <span class="number">1</span>
+                    Informations
+                </div>
+                <div class="step-divider"></div>
+                <div class="step">
+                    <span class="number">2</span>
+                    Lignes
+                </div>
+                <div class="step-divider"></div>
+                <div class="step">
+                    <span class="number">3</span>
+                    Recapitulatif
+                </div>
+                {% endblock %}
+            </div>
+
+            {% block before_content %}{% endblock %}
+
+            <div id="errorsContainer" class="errors-container">
+                <h4>Veuillez corriger les erreurs suivantes</h4>
+                <ul id="errorsList"></ul>
+            </div>
+
+            {% block content %}{% endblock %}
+        </div>
+
+        <script>
+            function clearErrors() {
+                document.getElementById("errorsContainer").style.display = "none";
+                document.getElementById("errorsList").innerHTML = "";
+                var successEl = document.getElementById("successContainer");
+                if (successEl) successEl.style.display = "none";
+                document.querySelectorAll(".error").forEach(function(el) { el.classList.remove("error"); });
+                document.querySelectorAll(".field-error").forEach(function(el) { el.textContent = ""; });
+            }
+
+            function displayErrors(errors) {
+                clearErrors();
+                if (!errors || errors.length === 0) return;
+
+                var container = document.getElementById("errorsContainer");
+                var list = document.getElementById("errorsList");
+
+                errors.forEach(function(error) {
+                    var li = document.createElement("li");
+                    li.textContent = error.message;
+                    list.appendChild(li);
+
+                    var input = document.querySelector('[name="' + error.field + '"]');
+                    if (input) {
+                        input.classList.add("error");
+                        var lineContainer = input.closest(".line");
+                        if (lineContainer) {
+                            lineContainer.classList.add("error");
+                        }
+                    }
+                });
+
+                container.style.display = "block";
+                container.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+        </script>
+        {% block scripts %}{% endblock %}
+    </body>
+</html>

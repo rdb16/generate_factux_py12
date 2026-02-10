@@ -1,104 +1,27 @@
-<!doctype html>
-<html>
-    <head>
-        <title>Facture generee - Recapitulatif</title>
-        <meta charset="UTF-8" />
-        <style>
-            * {
-                box-sizing: border-box;
-            }
-            body {
-                font-family:
-                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                    sans-serif;
-                max-width: 1100px;
-                margin: 0 auto;
-                padding: 40px 20px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-            }
-            .container {
-                background: white;
-                border-radius: 12px;
-                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-                overflow: hidden;
-            }
-            .header {
-                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                color: white;
-                padding: 24px 30px;
-                display: flex;
-                align-items: center;
-                gap: 20px;
-            }
-            .header-logo {
-                width: 50px;
-                height: 50px;
-                object-fit: contain;
-                border-radius: 8px;
-                background: white;
-                padding: 4px;
-            }
-            .header-text h1 {
-                margin: 0;
-                font-size: 22px;
-                font-weight: 600;
-            }
-            .header-text .emitter {
-                opacity: 0.8;
-                font-size: 13px;
-            }
-            .steps {
-                display: flex;
-                justify-content: center;
-                padding: 16px 30px;
-                background: #f8fafc;
-                border-bottom: 1px solid #e2e8f0;
-            }
-            .step {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                padding: 0 20px;
-                color: #a0aec0;
-                font-size: 14px;
-            }
-            .step.completed {
-                color: #38a169;
-            }
-            .step.active {
-                color: #667eea;
-                font-weight: 600;
-            }
-            .step .number {
-                width: 26px;
-                height: 26px;
-                border-radius: 50%;
-                background: #e2e8f0;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 12px;
-                font-weight: 600;
-            }
-            .step.completed .number {
-                background: #38a169;
-                color: white;
-            }
-            .step.active .number {
-                background: #667eea;
-                color: white;
-            }
-            .step-divider {
-                width: 40px;
-                height: 2px;
-                background: #e2e8f0;
-                margin: 0 10px;
-            }
-            .step.completed + .step-divider {
-                background: #38a169;
-            }
+{% extends "base.html" %}
 
+{% block title %}Facture generee - Recapitulatif{% endblock %}
+
+{% block header_title %}Facture generee{% endblock %}
+
+{% block steps %}
+                <div class="step completed">
+                    <span class="number">&#10003;</span>
+                    Informations
+                </div>
+                <div class="step-divider"></div>
+                <div class="step completed">
+                    <span class="number">&#10003;</span>
+                    Lignes
+                </div>
+                <div class="step-divider"></div>
+                <div class="step active">
+                    <span class="number">3</span>
+                    Recapitulatif
+                </div>
+{% endblock %}
+
+{% block extra_styles %}
             /* Bandeau succes */
             .success-banner {
                 background: #f0fff4;
@@ -340,69 +263,15 @@
                 padding-top: 20px;
                 border-top: 1px solid #e2e8f0;
             }
-            .btn {
-                padding: 12px 24px;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: 500;
-                transition: all 0.2s;
-                text-decoration: none;
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-            }
-            .btn-secondary {
-                background: #edf2f7;
-                color: #4a5568;
-            }
-            .btn-secondary:hover {
-                background: #e2e8f0;
-            }
-            .btn-primary {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-            }
-            .btn-primary:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-            }
 
             @media (max-width: 1200px) {
                 .summary {
                     grid-template-columns: 1fr;
                 }
             }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <img src="{{ logo_path }}" alt="Logo" class="header-logo" />
-                <div class="header-text">
-                    <h1>Facture generee</h1>
-                    <div class="emitter">{{ emitter.name }}{% if emitter.legal_form %} - {{ emitter.legal_form }}{% endif %}</div>
-                </div>
-            </div>
+{% endblock %}
 
-            <div class="steps">
-                <div class="step completed">
-                    <span class="number">&#10003;</span>
-                    Informations
-                </div>
-                <div class="step-divider"></div>
-                <div class="step completed">
-                    <span class="number">&#10003;</span>
-                    Lignes
-                </div>
-                <div class="step-divider"></div>
-                <div class="step active">
-                    <span class="number">3</span>
-                    Recapitulatif
-                </div>
-            </div>
-
+{% block before_content %}
             <div class="success-banner">
                 <div class="icon">&#10003;</div>
                 <div class="text">
@@ -469,7 +338,9 @@
                     </div>
                 </div>
             </div>
+{% endblock %}
 
+{% block content %}
             <div class="main-content">
                 <h2 class="section-title">Lignes de facturation</h2>
 
@@ -591,6 +462,4 @@
                     </a>
                 </div>
             </div>
-        </div>
-    </body>
-</html>
+{% endblock %}
