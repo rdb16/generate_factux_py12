@@ -25,9 +25,11 @@ Le système génère des **PDF Factur-X complets** :
    - Description produit/service
    - Quantité, prix unitaire HT
    - Taux de TVA (0%, 5.5%, 10%, 20%)
+   - **Support TVA 0% avec catégories** : Z (taux zéro), E (exonéré), AE (autoliquidation), G (export), K (intracommunautaire), O (hors champ)
+   - **Motif d'exonération** (BT-120/BT-121) : code VATEX et texte, requis pour les catégories E, AE, G, K, O
    - Rabais optionnels (pourcentage ou montant fixe)
    - Calcul automatique des totaux HT, TVA, TTC
-   - Récapitulatif par taux de TVA
+   - Récapitulatif par taux de TVA et catégorie
 
 3. **Étape 3 - Récapitulatif**
    - Résumé complet : facture, émetteur, client
@@ -245,6 +247,7 @@ Generate-FacturX-PY/
 - ✅ Validation stricte côté serveur
 - ✅ Calcul automatique des totaux et récapitulatif TVA
 - ✅ Support des rabais par ligne (pourcentage ou montant fixe)
+- ✅ Support TVA 0% avec sélection de catégorie et motif d'exonération
 - ✅ Interface responsive (desktop, tablette, mobile)
 - ✅ Design moderne avec dégradés et animations
 
@@ -269,7 +272,51 @@ Generate-FacturX-PY/
 - ✅ Structure CrossIndustryInvoice (CII)
 - ✅ Validation XSD officielle
 - ✅ Conformité Schematron (PEPPOL-EN16931)
+- ✅ Catégories TVA conformes (S, Z, E, AE, G, K, O) avec BT-120/BT-121
 - ✅ Compatible avec tous les lecteurs Factur-X
+
+## TVA 0% : catégories et motifs d'exonération
+
+### Catégories TVA (BT-118)
+
+Quand le taux de TVA est supérieur à 0%, la catégorie `S` (standard) est appliquée automatiquement. Quand le taux est à 0%, l'utilisateur choisit parmi les catégories suivantes :
+
+| Code | Catégorie | Motif requis | Cas d'usage |
+|------|-----------|--------------|-------------|
+| `Z`  | Taux zéro | Non | Produits/services à taux zéro réglementaire |
+| `E`  | Exonéré de TVA | Oui | Franchise en base, activités d'intérêt public, soins médicaux, enseignement |
+| `AE` | Autoliquidation (reverse charge) | Oui | Sous-traitance BTP, art. 283-2 CGI |
+| `G`  | Export hors UE | Oui | Livraisons extracommunautaires |
+| `K`  | Livraison intracommunautaire | Oui | Livraisons B2B au sein de l'UE |
+| `O`  | Hors champ TVA | Oui | Opérations hors champ territorial |
+
+### Codes VATEX (BT-121)
+
+Pour les catégories E, AE, G, K et O, un code VATEX doit être renseigné. Les codes disponibles sont filtrés par catégorie :
+
+- **E** : `VATEX-EU-132`, `VATEX-EU-132-1B`, `VATEX-EU-132-1I`, `VATEX-FR-FRANCHISE`, `VATEX-FR-CNWVAT`, etc.
+- **AE** : `VATEX-EU-AE`, `VATEX-FR-AE`
+- **G** : `VATEX-EU-G`, `VATEX-FR-CGI275`
+- **K** : `VATEX-EU-IC`
+- **O** : `VATEX-EU-O`
+
+### XML généré
+
+Pour une ligne avec catégorie E et code VATEX-FR-FRANCHISE :
+
+```xml
+<ram:ApplicableTradeTax>
+  <ram:CalculatedAmount>0.00</ram:CalculatedAmount>
+  <ram:TypeCode>VAT</ram:TypeCode>
+  <ram:ExemptionReason>Franchise en base de TVA</ram:ExemptionReason>
+  <ram:ExemptionReasonCode>VATEX-FR-FRANCHISE</ram:ExemptionReasonCode>
+  <ram:BasisAmount>1000.00</ram:BasisAmount>
+  <ram:CategoryCode>E</ram:CategoryCode>
+  <ram:RateApplicablePercent>0.00</ram:RateApplicablePercent>
+</ram:ApplicableTradeTax>
+```
+
+Les éléments `ExemptionReason` (BT-120) et `ExemptionReasonCode` (BT-121) sont requis par les règles Schematron BR-E-10, BR-AE-10, BR-G-10, BR-K-10 et BR-O-10.
 
 ## Format Factur-X
 
@@ -458,8 +505,8 @@ Projet privé SNTPK.
 
 ---
 
-**Version :** 1.0.0
+**Version :** 1.1.0
 **Python :** 3.12+
 **Profil Factur-X :** EN16931 (Factur-X 1.07, CII D22B)
 **Conformité :** PDF/A-3B (VeraPDF) + XSD + Schematron
-**Dernière mise à jour :** 2026-02-09
+**Dernière mise à jour :** 2026-02-10
