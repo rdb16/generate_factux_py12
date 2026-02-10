@@ -397,6 +397,28 @@ def validate_step2(lines: list[dict]) -> list[dict]:
                 'message': f'Ligne {i+1} : prix unitaire invalide'
             })
 
+        # Validation catégorie TVA pour taux 0%
+        try:
+            vat_rate = Decimal(str(line.get('vat_rate', 20)))
+        except (ValueError, TypeError):
+            vat_rate = Decimal('20')
+
+        if vat_rate == 0:
+            vat_cat = line.get('vat_category', '').strip()
+            if not vat_cat:
+                errors.append({
+                    'field': f'lines[{i}][vat_category]',
+                    'message': f'Ligne {i+1} : la catégorie TVA est obligatoire quand le taux est à 0%'
+                })
+            elif vat_cat in ('E', 'AE', 'G', 'K', 'O'):
+                exemption_code = line.get('vat_exemption_code', '').strip()
+                exemption_reason = line.get('vat_exemption_reason', '').strip()
+                if not exemption_code and not exemption_reason:
+                    errors.append({
+                        'field': f'lines[{i}][vat_exemption_code]',
+                        'message': f'Ligne {i+1} : un code VATEX ou un motif d\'exonération est requis pour la catégorie {vat_cat}'
+                    })
+
     return errors
 
 
@@ -418,6 +440,9 @@ def parse_lines_from_form(form_data) -> list[dict]:
             'vat_rate': form_data.get(f'lines[{idx}][vat_rate]', '20'),
             'discount_value': form_data.get(f'lines[{idx}][discount_value]', ''),
             'discount_type': form_data.get(f'lines[{idx}][discount_type]', 'percent'),
+            'vat_category': form_data.get(f'lines[{idx}][vat_category]', ''),
+            'vat_exemption_code': form_data.get(f'lines[{idx}][vat_exemption_code]', ''),
+            'vat_exemption_reason': form_data.get(f'lines[{idx}][vat_exemption_reason]', ''),
         }
         lines.append(line)
 
@@ -842,20 +867,26 @@ def generate_invoice():
     summary_lines = []
     for line in lines:
         lt = _calculate_line_totals(line)
+        vat_display = str(lt['vat_rate'])
+        if lt['vat_category'] != 'S':
+            vat_display += f" ({lt['vat_category']})"
         summary_lines.append({
             'description': line['description'],
             'quantity': str(lt['quantity']),
             'unit_price': _fmt(lt['unit_price']),
-            'vat_rate': str(lt['vat_rate']),
+            'vat_rate': vat_display,
             'net_ht': _fmt(lt['net_ht']),
             'discount_amount': _fmt(lt['discount_amount']),
         })
 
     vat_breakdown = []
-    for rate_key in sorted(invoice_totals['vat_breakdown'].keys(), key=lambda k: Decimal(k), reverse=True):
+    for rate_key in sorted(invoice_totals['vat_breakdown'].keys(), key=lambda k: invoice_totals['vat_breakdown'][k]['rate'], reverse=True):
         info = invoice_totals['vat_breakdown'][rate_key]
+        rate_display = str(info['rate'])
+        if info.get('vat_category', 'S') != 'S':
+            rate_display += f" ({info['vat_category']})"
         vat_breakdown.append({
-            'rate': str(info['rate']),
+            'rate': rate_display,
             'base_ht': _fmt(info['base_ht']),
             'vat_amount': _fmt(info['vat_amount']),
         })

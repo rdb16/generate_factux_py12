@@ -78,6 +78,11 @@ def _calculate_line_totals(line: dict) -> dict:
     net_ht = max(Decimal('0'), gross_ht - discount_amount)
     vat_amount = net_ht * (vat_rate / 100)
 
+    if vat_rate > 0:
+        vat_category = 'S'
+    else:
+        vat_category = line.get('vat_category', '').strip() or 'Z'
+
     return {
         'quantity': qty,
         'unit_price': unit_price,
@@ -87,6 +92,8 @@ def _calculate_line_totals(line: dict) -> dict:
         'vat_rate': vat_rate,
         'vat_amount': vat_amount,
         'total_ttc': net_ht + vat_amount,
+        'vat_category': vat_category,
+        'vat_exemption_reason': line.get('vat_exemption_reason', '').strip(),
     }
 
 
@@ -101,10 +108,12 @@ def _calculate_invoice_totals(lines: list[dict]) -> dict:
         total_ht += totals['net_ht']
         total_vat += totals['vat_amount']
 
-        rate_key = str(totals['vat_rate'])
+        rate_key = f"{totals['vat_rate']}_{totals['vat_category']}"
         if rate_key not in vat_breakdown:
             vat_breakdown[rate_key] = {
                 'rate': totals['vat_rate'],
+                'vat_category': totals['vat_category'],
+                'vat_exemption_reason': totals.get('vat_exemption_reason', ''),
                 'base_ht': Decimal('0'),
                 'vat_amount': Decimal('0'),
             }
@@ -288,11 +297,15 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
 
     for line in lines:
         totals = _calculate_line_totals(line)
+        # Afficher "0% (E)" si catégorie ≠ S, sinon juste le taux
+        vat_label = _format_amount(totals['vat_rate'])
+        if totals['vat_category'] != 'S':
+            vat_label = f"{vat_label} ({totals['vat_category']})"
         line_data.append([
             Paragraph(line['description'], normal_style),
             _format_amount(totals['quantity']),
             _format_amount(totals['unit_price']) + ' €',
-            _format_amount(totals['vat_rate']),
+            vat_label,
             _format_amount(totals['net_ht']) + ' €',
         ])
 
@@ -314,6 +327,44 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
     ]))
     story.append(line_table)
     story.append(Spacer(1, 0.7*cm))
+
+    # Récap TVA par taux/catégorie
+    vat_recap_data = [['Taux TVA', 'Base HT', 'Montant TVA']]
+    for rate_key in sorted(invoice_totals['vat_breakdown'].keys()):
+        info = invoice_totals['vat_breakdown'][rate_key]
+        rate_label = _format_amount(info['rate']) + ' %'
+        if info['vat_category'] != 'S':
+            rate_label += f" ({info['vat_category']})"
+        vat_recap_data.append([
+            rate_label,
+            _format_amount(info['base_ht']) + ' €',
+            _format_amount(info['vat_amount']) + ' €',
+        ])
+        # Motif d'exonération sous la ligne du taux
+        if info.get('vat_exemption_reason'):
+            vat_recap_data.append([
+                Paragraph(f"<i>{info['vat_exemption_reason']}</i>", ParagraphStyle('VatNote', parent=normal_style, fontSize=7, textColor=colors.grey)),
+                '', '',
+            ])
+
+    if len(vat_recap_data) > 1:
+        vat_recap_table = Table(vat_recap_data, colWidths=[7*cm, 5*cm, 5*cm])
+        vat_recap_style = [
+            ('FONTNAME', (0, 0), (-1, -1), 'LiberationSans'),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#edf2f7')),
+            ('FONTNAME', (0, 0), (-1, 0), 'LiberationSans-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e2e8f0')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]
+        vat_recap_table.setStyle(TableStyle(vat_recap_style))
+        story.append(vat_recap_table)
+        story.append(Spacer(1, 0.3*cm))
 
     # Totaux
     total_data = [

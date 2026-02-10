@@ -316,6 +316,48 @@
                 color: #c53030;
             }
 
+            /* TVA 0% : catégorie et exonération */
+            .vat-extra-row {
+                display: none;
+                padding: 8px 16px 12px 16px;
+                background: #fffff0;
+                border-top: 1px dashed #e2e8f0;
+                align-items: center;
+                gap: 12px;
+                flex-wrap: wrap;
+            }
+            .vat-extra-row.visible {
+                display: flex;
+            }
+            .vat-extra-row .vat-extra-label {
+                font-size: 12px;
+                color: #718096;
+                white-space: nowrap;
+            }
+            .vat-extra-row select,
+            .vat-extra-row input[type="text"] {
+                padding: 6px 10px;
+                border: 1px solid #e2e8f0;
+                border-radius: 4px;
+                font-size: 13px;
+                background: white;
+            }
+            .vat-extra-row select:focus,
+            .vat-extra-row input[type="text"]:focus {
+                outline: none;
+                border-color: #667eea;
+            }
+            .vat-extra-row select.category-select {
+                width: 220px;
+            }
+            .vat-extra-row select.vatex-select {
+                width: 280px;
+            }
+            .vat-extra-row input.reason-input {
+                flex: 1;
+                min-width: 200px;
+            }
+
             /* Boutons */
             .actions-row {
                 display: flex;
@@ -707,7 +749,7 @@
                                 />
                                 <select
                                     name="lines[0][vat_rate]"
-                                    onchange="updateLineTotal(this)"
+                                    onchange="onVatRateChange(this)"
                                 >
                                     <option value="0">0 %</option>
                                     <option value="5.5">5,5 %</option>
@@ -758,6 +800,21 @@
                                 >
                                     &#10005;
                                 </button>
+                            </div>
+                            <div class="vat-extra-row">
+                                <span class="vat-extra-label">Categorie TVA :</span>
+                                <select name="lines[0][vat_category]" class="category-select" onchange="onCategoryChange(this)">
+                                    <option value="Z">Z - Taux zero</option>
+                                    <option value="E">E - Exonere de TVA</option>
+                                    <option value="AE">AE - Autoliquidation</option>
+                                    <option value="G">G - Export hors UE</option>
+                                    <option value="K">K - Intracommunautaire</option>
+                                    <option value="O">O - Hors champ TVA</option>
+                                </select>
+                                <select name="lines[0][vat_exemption_code]" class="vatex-select" style="display:none;" onchange="onVatexChange(this)">
+                                    <option value="">-- Code VATEX --</option>
+                                </select>
+                                <input type="text" name="lines[0][vat_exemption_reason]" class="reason-input" placeholder="Motif d'exoneration" style="display:none;" />
                             </div>
                         </div>
                     </div>
@@ -838,6 +895,96 @@
         <script>
             let lineCount = 1;
             const currency = "{{ invoice.currency_code }}";
+
+            // Codes VATEX par catégorie
+            const VATEX_CODES = {
+                'E': [
+                    { code: 'VATEX-EU-132', label: "Activites d'interet public (art. 132)" },
+                    { code: 'VATEX-EU-132-1B', label: 'Soins medicaux (art. 132-1b)' },
+                    { code: 'VATEX-EU-132-1I', label: 'Enseignement (art. 132-1i)' },
+                    { code: 'VATEX-FR-FRANCHISE', label: 'Franchise en base de TVA' },
+                    { code: 'VATEX-FR-CNWVAT', label: 'Avoir sans TVA' },
+                ],
+                'AE': [
+                    { code: 'VATEX-EU-AE', label: 'Reverse charge UE (art. 194/196)' },
+                    { code: 'VATEX-FR-AE', label: 'Autoliquidation art. 283-2 CGI' },
+                ],
+                'G': [
+                    { code: 'VATEX-EU-G', label: 'Export hors UE (art. 146/147/148)' },
+                    { code: 'VATEX-FR-CGI275', label: 'Export art. 275 CGI' },
+                ],
+                'K': [
+                    { code: 'VATEX-EU-IC', label: 'Livraison intracommunautaire (art. 138)' },
+                ],
+                'O': [
+                    { code: 'VATEX-EU-O', label: 'Hors champ TVA' },
+                ],
+            };
+
+            function onVatRateChange(select) {
+                const wrapper = select.closest('.line-wrapper');
+                const vatExtra = wrapper.querySelector('.vat-extra-row');
+                const rate = parseFloat(select.value) || 0;
+
+                if (rate === 0) {
+                    vatExtra.classList.add('visible');
+                    // Reset à Z par défaut
+                    const catSelect = wrapper.querySelector('.category-select');
+                    catSelect.value = 'Z';
+                    onCategoryChange(catSelect);
+                } else {
+                    vatExtra.classList.remove('visible');
+                    // Reset les champs cachés
+                    wrapper.querySelector('.category-select').value = 'Z';
+                    const vatexSelect = wrapper.querySelector('.vatex-select');
+                    vatexSelect.style.display = 'none';
+                    vatexSelect.value = '';
+                    const reasonInput = wrapper.querySelector('.reason-input');
+                    reasonInput.style.display = 'none';
+                    reasonInput.value = '';
+                }
+                updateLineTotal(select);
+            }
+
+            function onCategoryChange(select) {
+                const wrapper = select.closest('.line-wrapper');
+                const category = select.value;
+                const vatexSelect = wrapper.querySelector('.vatex-select');
+                const reasonInput = wrapper.querySelector('.reason-input');
+
+                if (category === 'Z') {
+                    vatexSelect.style.display = 'none';
+                    vatexSelect.value = '';
+                    reasonInput.style.display = 'none';
+                    reasonInput.value = '';
+                } else {
+                    // Remplir le dropdown VATEX selon la catégorie
+                    vatexSelect.innerHTML = '<option value="">-- Code VATEX --</option>';
+                    const codes = VATEX_CODES[category] || [];
+                    codes.forEach(item => {
+                        const opt = document.createElement('option');
+                        opt.value = item.code;
+                        opt.textContent = item.code + ' - ' + item.label;
+                        vatexSelect.appendChild(opt);
+                    });
+                    vatexSelect.style.display = '';
+                    reasonInput.style.display = '';
+                    reasonInput.value = '';
+                }
+                updateTotals();
+            }
+
+            function onVatexChange(select) {
+                const wrapper = select.closest('.line-wrapper');
+                const reasonInput = wrapper.querySelector('.reason-input');
+                const code = select.value;
+                const category = wrapper.querySelector('.category-select').value;
+                const codes = VATEX_CODES[category] || [];
+                const found = codes.find(c => c.code === code);
+                if (found) {
+                    reasonInput.value = found.label;
+                }
+            }
 
             function validateExistingLines() {
                 const errors = [];
@@ -927,7 +1074,7 @@
                                 placeholder="0.00"
                                 onchange="updateLineTotal(this)"
                             />
-                            <select name="lines[${newIndex}][vat_rate]" onchange="updateLineTotal(this)">
+                            <select name="lines[${newIndex}][vat_rate]" onchange="onVatRateChange(this)">
                                 <option value="0">0 %</option>
                                 <option value="5.5">5,5 %</option>
                                 <option value="10">10 %</option>
@@ -954,6 +1101,21 @@
                             </select>
                             <span class="discount-amount" data-discount="${newIndex}"></span>
                             <button type="button" class="btn-clear-discount" onclick="clearDiscount(this)" title="Supprimer le rabais">&#10005;</button>
+                        </div>
+                        <div class="vat-extra-row">
+                            <span class="vat-extra-label">Categorie TVA :</span>
+                            <select name="lines[${newIndex}][vat_category]" class="category-select" onchange="onCategoryChange(this)">
+                                <option value="Z">Z - Taux zero</option>
+                                <option value="E">E - Exonere de TVA</option>
+                                <option value="AE">AE - Autoliquidation</option>
+                                <option value="G">G - Export hors UE</option>
+                                <option value="K">K - Intracommunautaire</option>
+                                <option value="O">O - Hors champ TVA</option>
+                            </select>
+                            <select name="lines[${newIndex}][vat_exemption_code]" class="vatex-select" style="display:none;" onchange="onVatexChange(this)">
+                                <option value="">-- Code VATEX --</option>
+                            </select>
+                            <input type="text" name="lines[${newIndex}][vat_exemption_reason]" class="reason-input" placeholder="Motif d'exoneration" style="display:none;" />
                         </div>
                     </div>
                 `;
@@ -1062,7 +1224,7 @@
                 let totalHt = 0;
                 let totalVat = 0;
 
-                // Objet pour regrouper par taux de TVA
+                // Objet pour regrouper par taux + catégorie de TVA
                 const vatByRate = {};
 
                 document
@@ -1093,6 +1255,13 @@
                             '[name*="discount_type"]',
                         ).value;
 
+                        // Catégorie TVA
+                        let category = 'S';
+                        if (vatRate === 0) {
+                            const catSelect = wrapper.querySelector('.category-select');
+                            category = catSelect ? catSelect.value : 'Z';
+                        }
+
                         const grossHt = qty * price;
 
                         // Calcul du rabais
@@ -1112,16 +1281,19 @@
                         totalHt += netHt;
                         totalVat += lineVat;
 
-                        // Regrouper par taux de TVA
+                        // Regrouper par taux + catégorie
+                        const rateKey = vatRate + '_' + category;
                         if (netHt > 0) {
-                            if (!vatByRate[vatRate]) {
-                                vatByRate[vatRate] = {
+                            if (!vatByRate[rateKey]) {
+                                vatByRate[rateKey] = {
+                                    rate: vatRate,
+                                    category: category,
                                     baseHt: 0,
                                     vatAmount: 0,
                                 };
                             }
-                            vatByRate[vatRate].baseHt += netHt;
-                            vatByRate[vatRate].vatAmount += lineVat;
+                            vatByRate[rateKey].baseHt += netHt;
+                            vatByRate[rateKey].vatAmount += lineVat;
                         }
                     });
 
@@ -1130,7 +1302,7 @@
                 // Mise a jour du tableau recapitulatif TVA
                 const vatBody = document.getElementById("vat-breakdown-body");
                 const rates = Object.keys(vatByRate).sort(
-                    (a, b) => parseFloat(b) - parseFloat(a),
+                    (a, b) => vatByRate[b].rate - vatByRate[a].rate,
                 );
 
                 if (rates.length === 0) {
@@ -1138,10 +1310,12 @@
                         '<tr><td colspan="3" class="vat-table-empty">Aucune ligne saisie</td></tr>';
                 } else {
                     let html = "";
-                    rates.forEach((rate) => {
-                        const data = vatByRate[rate];
-                        const rateLabel =
-                            rate === "5.5" ? "5,5 %" : rate + " %";
+                    rates.forEach((rateKey) => {
+                        const data = vatByRate[rateKey];
+                        let rateLabel = data.rate === 5.5 ? "5,5 %" : data.rate + " %";
+                        if (data.category !== 'S') {
+                            rateLabel += ` (${data.category})`;
+                        }
                         html += `<tr>
                             <td class="vat-rate">${rateLabel}</td>
                             <td>${data.baseHt.toFixed(2)} ${currency}</td>

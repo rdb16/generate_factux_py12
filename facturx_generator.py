@@ -74,6 +74,12 @@ def _calculate_line_totals(line: dict) -> dict:
     net_ht = max(Decimal('0'), gross_ht - discount_amount)
     vat_amount = net_ht * (vat_rate / 100)
 
+    # Catégorie TVA : S si taux > 0, sinon la catégorie fournie (défaut Z)
+    if vat_rate > 0:
+        vat_category = 'S'
+    else:
+        vat_category = line.get('vat_category', '').strip() or 'Z'
+
     return {
         'quantity': qty,
         'unit_price': unit_price,
@@ -83,6 +89,9 @@ def _calculate_line_totals(line: dict) -> dict:
         'vat_rate': vat_rate,
         'vat_amount': vat_amount,
         'total_ttc': net_ht + vat_amount,
+        'vat_category': vat_category,
+        'vat_exemption_code': line.get('vat_exemption_code', '').strip(),
+        'vat_exemption_reason': line.get('vat_exemption_reason', '').strip(),
     }
 
 
@@ -97,10 +106,14 @@ def _calculate_invoice_totals(lines: list[dict]) -> dict:
         total_ht += totals['net_ht']
         total_vat += totals['vat_amount']
 
-        rate_key = str(totals['vat_rate'])
+        # Clé de regroupement : rate + catégorie (distingue les catégories à 0%)
+        rate_key = f"{totals['vat_rate']}_{totals['vat_category']}"
         if rate_key not in vat_breakdown:
             vat_breakdown[rate_key] = {
                 'rate': totals['vat_rate'],
+                'vat_category': totals['vat_category'],
+                'vat_exemption_code': totals['vat_exemption_code'],
+                'vat_exemption_reason': totals['vat_exemption_reason'],
                 'base_ht': Decimal('0'),
                 'vat_amount': Decimal('0'),
             }
@@ -236,7 +249,7 @@ def generate_facturx_xml(data: dict) -> str:
         line_tax_type = ET.SubElement(line_tax, _qname('ram', 'TypeCode'))
         line_tax_type.text = 'VAT'
         line_tax_cat = ET.SubElement(line_tax, _qname('ram', 'CategoryCode'))
-        line_tax_cat.text = 'S' if line_totals['vat_rate'] > 0 else 'Z'
+        line_tax_cat.text = line_totals['vat_category']
         line_tax_rate = ET.SubElement(line_tax, _qname('ram', 'RateApplicablePercent'))
         line_tax_rate.text = _format_amount(line_totals['vat_rate'])
 
@@ -371,11 +384,21 @@ def generate_facturx_xml(data: dict) -> str:
         tax_type = ET.SubElement(tax, _qname('ram', 'TypeCode'))
         tax_type.text = 'VAT'
 
+        # BT-120 / BT-121 : motif d'exonération (requis pour catégories E, AE, G, K, O)
+        category = vat_info['vat_category']
+        if category in ('E', 'AE', 'G', 'K', 'O'):
+            if vat_info.get('vat_exemption_reason'):
+                exemption_reason = ET.SubElement(tax, _qname('ram', 'ExemptionReason'))
+                exemption_reason.text = vat_info['vat_exemption_reason']
+            if vat_info.get('vat_exemption_code'):
+                exemption_code = ET.SubElement(tax, _qname('ram', 'ExemptionReasonCode'))
+                exemption_code.text = vat_info['vat_exemption_code']
+
         tax_base = ET.SubElement(tax, _qname('ram', 'BasisAmount'))
         tax_base.text = _format_amount(vat_info['base_ht'])
 
         tax_cat = ET.SubElement(tax, _qname('ram', 'CategoryCode'))
-        tax_cat.text = 'S' if vat_info['rate'] > 0 else 'Z'
+        tax_cat.text = category
 
         tax_rate = ET.SubElement(tax, _qname('ram', 'RateApplicablePercent'))
         tax_rate.text = _format_amount(vat_info['rate'])
