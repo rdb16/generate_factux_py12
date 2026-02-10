@@ -4,52 +4,24 @@ Application Flask pour générer des factures électroniques au format Factur-X 
 
 ## Description
 
-Ce projet permet de créer des **factures électroniques conformes** au standard Factur-X, le format hybride franco-allemand basé sur PDF/A-3 avec XML embarqué.
+Crée des **PDF Factur-X conformes** : PDF visuel (ReportLab) + XML embarqué (CII), validés XSD, Schematron et PDF/A-3B (VeraPDF).
 
-Le système génère des **PDF Factur-X complets** :
-- PDF de facture visuel (généré avec ReportLab)
-- XML structuré conforme EN 16931 (profil EN16931)
-- Validation XSD officielle et conformité Schematron
-- PDF/A-3B validé VeraPDF (polices embarquées + profil ICC sRGB)
+**Profil :** EN16931 — `urn:cen.eu:en16931:2017` (Factur-X 1.07, CII D22B)
 
 ### Interface web en trois étapes
 
-1. **Étape 1 - Informations générales**
-   - Numéro de facture (manuel ou auto), type de document, devise
-   - Dates d'émission et d'échéance
-   - Informations client : raison sociale, SIRET, TVA intracommunautaire
-   - Adresse complète : rue, code postal, ville, pays
-   - Références : bon de commande, référence acheteur
+1. **Informations générales** — Numéro de facture (manuel ou auto), type, devise, dates, client (raison sociale, SIRET, TVA intracom, adresse), références
+2. **Lignes de facturation** — Description, quantité, prix unitaire HT, taux TVA (0–20%), rabais optionnels, calcul automatique des totaux et récap TVA par catégorie. Pour TVA 0% : sélection de la catégorie (Z/E/AE/G/K/O) et motif d'exonération (BT-120/BT-121)
+3. **Récapitulatif** — Résumé complet, ventilation TVA, téléchargement du PDF Factur-X, nouvelle facture
 
-2. **Étape 2 - Lignes de facturation**
-   - Description produit/service
-   - Quantité, prix unitaire HT
-   - Taux de TVA (0%, 5.5%, 10%, 20%)
-   - **Support TVA 0% avec catégories** : Z (taux zéro), E (exonéré), AE (autoliquidation), G (export), K (intracommunautaire), O (hors champ)
-   - **Motif d'exonération** (BT-120/BT-121) : code VATEX et texte, requis pour les catégories E, AE, G, K, O
-   - Rabais optionnels (pourcentage ou montant fixe)
-   - Calcul automatique des totaux HT, TVA, TTC
-   - Récapitulatif par taux de TVA et catégorie
-
-3. **Étape 3 - Récapitulatif**
-   - Résumé complet : facture, émetteur, client
-   - Tableau des lignes de facturation (lecture seule)
-   - Ventilation TVA par taux et totaux (HT, TVA, TTC)
-   - Opérations effectuées : fichiers PDF/XML générés, statut base de données
-   - Téléchargement du PDF Factur-X
-   - Bouton « Nouvelle facture » (vide la session)
-
-
-
-## Installation
+## Installation et commandes
 
 ```bash
-# Cloner le projet
-git clone <url-du-repo>
-cd Generate-FacturX-PY
-
-# Installer les dépendances
-uv sync
+git clone <url-du-repo> && cd Generate-FacturX-PY
+uv sync                          # Installer les dépendances
+uv run python app.py             # Lancer l'application (http://localhost:5000)
+uv run python test_facturx.py    # Tester la génération Factur-X
+uv add <package>                 # Ajouter une dépendance
 ```
 
 ### Dépendances principales
@@ -60,15 +32,11 @@ dependencies = [
     "jinja2>=3.1.6",          # Templates HTML
     "factur-x>=3.15",         # Génération PDF Factur-X (inclut pypdf)
     "reportlab>=4.4.9",       # Génération PDF
-    "psycopg2-binary>=2.9.11",# Driver PostgreSQL
+    "psycopg2-binary>=2.9.11",# Driver PostgreSQL (optionnel)
 ]
-# pypdf (dépendance transitive de factur-x) est utilisé
-# pour injecter le profil ICC sRGB (OutputIntent PDF/A-3)
 ```
 
 ## Configuration
-
-### 1. Fichier de configuration émetteur
 
 Créer `resources/config/ma-conf.txt` :
 
@@ -84,225 +52,66 @@ siret=12345678901234
 num_tva=FR12345678901
 bic=BNPAFRPPXXX
 
-# Logo (optionnel)
+# Logo (optionnel, fallback sur underwork.jpeg)
 logo=./resources/logos/mon-logo.png
 
-# Stockage
+# Stockage (répertoires créés automatiquement)
 xml_storage=./data/factures-xml
 pdf_storage=./data/factures-pdf
 
-# Base de données PostgreSQL (optionnel, requiert psycopg2-binary)
+# Base de données PostgreSQL (optionnel)
 is_db_pg=False
 
-# Numérotation automatique des factures (requiert is_db_pg=True)
+# Numérotation auto des factures (requiert is_db_pg=True)
 is_num_facturx_auto=False
 
-# Informations complémentaires émetteur (obligatoire, HTML/PDF)
+# Informations complémentaires émetteur
 cie_legal_form=S.A.R.L
 cie_IBAN=FR7612345678901234567890123
 
-# Notes obligatoires Factur-X BR-FR-05 (obligatoire, XML/HTML/PDF)
+# Notes obligatoires Factur-X BR-FR-05
 pmt_text=En cas de retard de paiement, une indemnité forfaitaire pour frais de recouvrement de 40€ sera exigée (Art. L441-10 et D441-5 du Code de commerce).
 pmd_text=En cas de retard de paiement, des pénalités de retard seront appliquées au taux de 3 fois le taux d'intérêt légal en vigueur (Art. L441-10 du Code de commerce).
 ```
 
-### 2. Validation au démarrage
+### Validation au démarrage
 
-L'application valide automatiquement au démarrage :
-- ✅ Format SIRET (14 chiffres)
-- ✅ Format SIREN (9 chiffres)
-- ✅ Cohérence SIREN/SIRET
-- ✅ Format BIC (8 ou 11 caractères)
-- ✅ Format TVA intracommunautaire
-- ✅ Forme juridique (`cie_legal_form`)
-- ✅ IBAN émetteur (`cie_IBAN`)
-- ✅ Texte frais de recouvrement (`pmt_text`, BR-FR-05)
-- ✅ Texte pénalités de retard (`pmd_text`, BR-FR-05)
-- ✅ Création des répertoires de stockage
-
-En cas d'erreur, l'application refuse de démarrer et affiche les corrections à apporter.
-
-## Lancement
-
-```bash
-# Démarrer l'application Flask
-uv run python app.py
-```
-
-L'application sera accessible sur `http://localhost:5000`
-
-```
-==============================================================
-Validation de la configuration...
-==============================================================
-
-[OK] Configuration validée avec succès
-  - Émetteur: Votre Entreprise SARL
-  - SIRET: 12345678901234
-  - Logo: ./resources/logos/mon-logo.png
-  - PostgreSQL: Désactivé
-  - Stockage XML: ./data/factures-xml
-==============================================================
-```
-
-## Tests
-
-### Test de génération Factur-X
-
-```bash
-uv run python test_facturx.py
-```
-
-**Résultats attendus :**
-```
-[1/4] Génération du PDF de base avec ReportLab...
-✓ PDF généré: ~54 000 bytes (polices Liberation Sans embarquées + ICC)
-
-[2/4] Génération du XML Factur-X...
-✓ XML généré: ~6 600 caractères
-
-[3/4] Combinaison PDF + XML avec factur-x...
-✓ PDF Factur-X généré: ~108 000 bytes
-
-[4/4] Sauvegarde...
-✓ PDF sauvegardé: donné par la fichier de conf, par ex: data/test/test-facturx.pdf
-✓ XML sauvegardé: donné par la fichier de conf, par ex: data/test/test-facturx.xml
-
-[INFO] factur-x XML file successfully validated against XSD
-```
-
-### Validation PDF/A-3 avec VeraPDF
-si verapdf est installé en local
-```bash
-verapdf --flavour 3b data/test/test-facturx.pdf
-```
-
-**Résultat attendu :**
-```xml
-<validationReport isCompliant="true">
-  <details passedRules="146" failedRules="0" passedChecks="2310" failedChecks="0"/>
-</validationReport>
-```
-
-## Structure du projet
-
-```
-Generate-FacturX-PY/
-├── app.py                        # Application Flask (routes, validation, session)
-├── facturx_generator.py          # Générateur XML Factur-X (profil EN16931)
-├── pdf_generator.py              # Générateur PDF ReportLab + OutputIntent ICC
-├── main.py                       # Point d'entrée alternatif
-├── test_facturx.py               # Script de test de génération
-├── pyproject.toml                # Configuration uv et dépendances
-├── uv.lock                       # Verrouillage des versions
-├── .python-version               # Version Python (3.12)
-├── .gitignore
-├── .env.template                 # Modèle de variables d'environnement
-├──                     
-├── README.md
-├── data/                         # Fichiers générés (gitignored)
-│   ├── factures-xml/             # XML Factur-X sauvegardés ( suivant la conf ) 
-│   ├── factures-pdf/             # PDF Factur-X sauvegardés ( suivant la conf ) 
-│   └── test/                     # Fichiers de test
-└── resources/
-    ├── config/
-    │   └── ma-conf.txt           # Configuration émetteur
-    ├── fonts/                    # Polices embarquées PDF/A-3
-    │   ├── LiberationSans-Regular.ttf
-    │   ├── LiberationSans-Bold.ttf
-    │   ├── LiberationSans-Italic.ttf
-    │   ├── LiberationSans-BoldItalic.ttf
-    │   └── LICENSE               # Licence SIL Open Font
-    ├── logos/                    # Logos entreprise
-    │   ├── sntpk-logo.jpeg       # Si pas de logo, underwork.jpeg sera utilisé
-    │   └── underwork.jpeg        # Logo par défaut (fallback)
-    ├── profiles/
-    │   └── sRGB.icc              # Profil ICC sRGB pour OutputIntent PDF/A-3
-    ├── sql/
-    │   └── create_table_sent_invoice.sql # si potion base de données à True
-    └── templates/                # Templates HTML Jinja2
-        ├── invoice_step1.html    # Formulaire infos facture + client
-        ├── invoice_step2.html    # Formulaire lignes de facturation
-        ├── invoice_step3.html    # Récapitulatif et téléchargement
-        └── facturx-xmp.xml       # Modèle métadonnées XMP
-```
+L'application valide automatiquement : formats SIRET/SIREN/BIC/TVA, cohérence SIREN-SIRET, forme juridique, IBAN, textes BR-FR-05, et crée les répertoires de stockage. En cas d'erreur, elle refuse de démarrer.
 
 ## Routes Flask
 
-| Méthode | Route                 | Fonction              | Description                                           |
-|---------|-----------------------|-----------------------|-------------------------------------------------------|
-| GET     | `/`                   | `index()`             | Affiche le formulaire step 1 (infos facture + client) |
-| POST    | `/invoice/step1`      | `submit_step1()`      | Valide step 1, stocke en session, retourne JSON       |
-| GET     | `/invoice/step2`      | `show_step2()`        | Affiche le formulaire step 2 (lignes de facturation)  |
-| POST    | `/invoice`            | `generate_invoice()`  | Valide step 2, génère PDF/XML, redirige vers step 3   |
-| GET     | `/invoice/step3`      | `show_step3()`        | Affiche le récapitulatif de la facture générée        |
-| GET     | `/invoice/download-pdf`| `download_pdf()`     | Télécharge le PDF Factur-X depuis le stockage         |
-| GET     | `/invoice/new`        | `new_invoice()`       | Vide la session et redirige vers step 1               |
-
-## Fonctionnalités
-
-### Interface utilisateur
-- ✅ Formulaire en 3 étapes avec navigation fluide
-- ✅ Validation temps réel côté client
-- ✅ Validation stricte côté serveur
-- ✅ Calcul automatique des totaux et récapitulatif TVA
-- ✅ Support des rabais par ligne (pourcentage ou montant fixe)
-- ✅ Support TVA 0% avec sélection de catégorie et motif d'exonération
-- ✅ Interface responsive (desktop, tablette, mobile)
-- ✅ Design moderne avec dégradés et animations
-
-### Génération Factur-X
-- ✅ PDF de facture visuel avec ReportLab
-- ✅ XML structuré conforme EN 16931 profil EN16931
-- ✅ Validation XSD automatique
-- ✅ Combinaison PDF + XML avec factur-x
-- ✅ Métadonnées PDF/A-3
-- ✅ Sauvegarde automatique (XML + PDF)
-- ✅ Page récapitulative avec téléchargement PDF
-- ✅ Insertion en base PostgreSQL (si `is_db_pg=True`), indépendante de la numérotation auto
-
-### Conformité PDF/A-3
-- ✅ Polices **Liberation Sans** embarquées (TTF subset) — zéro référence Helvetica
-- ✅ Profil ICC **sRGB** intégré via OutputIntent (`/GTS_PDFA1`)
-- ✅ Validé **VeraPDF** PDF/A-3B (146 règles, 0 échec)
-
-### Conformité Factur-X
-- ✅ Norme EN 16931 (facturation électronique européenne)
-- ✅ Profil Factur-X EN16931 (guideline `urn:cen.eu:en16931:2017`)
-- ✅ Structure CrossIndustryInvoice (CII)
-- ✅ Validation XSD officielle
-- ✅ Conformité Schematron (PEPPOL-EN16931)
-- ✅ Catégories TVA conformes (S, Z, E, AE, G, K, O) avec BT-120/BT-121
-- ✅ Compatible avec tous les lecteurs Factur-X
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/` | Formulaire step 1 (infos facture + client) |
+| POST | `/invoice/step1` | Valide step 1, stocke en session (JSON) |
+| GET | `/invoice/step2` | Formulaire step 2 (lignes de facturation) |
+| POST | `/invoice` | Valide step 2, génère PDF/XML, redirige vers step 3 |
+| GET | `/invoice/step3` | Récapitulatif de la facture générée |
+| GET | `/invoice/download-pdf` | Télécharge le PDF Factur-X |
+| GET | `/invoice/new` | Vide la session, retour step 1 |
 
 ## TVA 0% : catégories et motifs d'exonération
 
-### Catégories TVA (BT-118)
-
-Quand le taux de TVA est supérieur à 0%, la catégorie `S` (standard) est appliquée automatiquement. Quand le taux est à 0%, l'utilisateur choisit parmi les catégories suivantes :
+Quand le taux TVA > 0%, la catégorie `S` (standard) est appliquée automatiquement. Quand le taux est à 0%, l'utilisateur choisit parmi :
 
 | Code | Catégorie | Motif requis | Cas d'usage |
 |------|-----------|--------------|-------------|
-| `Z`  | Taux zéro | Non | Produits/services à taux zéro réglementaire |
-| `E`  | Exonéré de TVA | Oui | Franchise en base, activités d'intérêt public, soins médicaux, enseignement |
-| `AE` | Autoliquidation (reverse charge) | Oui | Sous-traitance BTP, art. 283-2 CGI |
-| `G`  | Export hors UE | Oui | Livraisons extracommunautaires |
-| `K`  | Livraison intracommunautaire | Oui | Livraisons B2B au sein de l'UE |
-| `O`  | Hors champ TVA | Oui | Opérations hors champ territorial |
+| `Z` | Taux zéro | Non | Taux zéro réglementaire |
+| `E` | Exonéré | Oui | Franchise en base, soins médicaux, enseignement |
+| `AE` | Autoliquidation | Oui | Sous-traitance BTP, art. 283-2 CGI |
+| `G` | Export hors UE | Oui | Livraisons extracommunautaires |
+| `K` | Intracommunautaire | Oui | Livraisons B2B au sein de l'UE |
+| `O` | Hors champ TVA | Oui | Opérations hors champ territorial |
 
-### Codes VATEX (BT-121)
+Pour les catégories E, AE, G, K et O, un **code VATEX** (BT-121) doit être renseigné, filtré par catégorie :
 
-Pour les catégories E, AE, G, K et O, un code VATEX doit être renseigné. Les codes disponibles sont filtrés par catégorie :
-
-- **E** : `VATEX-EU-132`, `VATEX-EU-132-1B`, `VATEX-EU-132-1I`, `VATEX-FR-FRANCHISE`, `VATEX-FR-CNWVAT`, etc.
+- **E** : `VATEX-EU-132`, `VATEX-FR-FRANCHISE`, `VATEX-FR-CNWVAT`, etc.
 - **AE** : `VATEX-EU-AE`, `VATEX-FR-AE`
 - **G** : `VATEX-EU-G`, `VATEX-FR-CGI275`
 - **K** : `VATEX-EU-IC`
 - **O** : `VATEX-EU-O`
 
-### XML généré
-
-Pour une ligne avec catégorie E et code VATEX-FR-FRANCHISE :
+Le XML généré inclut `ExemptionReason` (BT-120) et `ExemptionReasonCode` (BT-121), requis par les règles Schematron BR-E-10, BR-AE-10, BR-G-10, BR-K-10 et BR-O-10 :
 
 ```xml
 <ram:ApplicableTradeTax>
@@ -316,112 +125,10 @@ Pour une ligne avec catégorie E et code VATEX-FR-FRANCHISE :
 </ram:ApplicableTradeTax>
 ```
 
-Les éléments `ExemptionReason` (BT-120) et `ExemptionReasonCode` (BT-121) sont requis par les règles Schematron BR-E-10, BR-AE-10, BR-G-10, BR-K-10 et BR-O-10.
-
-## Format Factur-X
-
-### Profil de conformité
-
-**URN :** `urn:cen.eu:en16931:2017`
-
-Le profil EN16931 (aussi appelé Comfort) est le profil de conformité complet à la norme européenne EN 16931 (Factur-X 1.07, CII D22B).
-
-### Structure XML
-
-Le XML généré respecte la structure CrossIndustryInvoice (CII) avec les namespaces :
-
-```xml
-<rsm:CrossIndustryInvoice
-  xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
-  xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100"
-  xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
-  xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
-
-  <rsm:ExchangedDocumentContext>
-    <!-- Profil et version -->
-  </rsm:ExchangedDocumentContext>
-
-  <rsm:ExchangedDocument>
-    <!-- Numéro, type, date, notes -->
-  </rsm:ExchangedDocument>
-
-  <rsm:SupplyChainTradeTransaction>
-    <!-- Lignes, parties, totaux -->
-  </rsm:SupplyChainTradeTransaction>
-</rsm:CrossIndustryInvoice>
-```
-
-### Champs du profil EN16931
-
-Le profil EN16931 supporte l'ensemble des champs d'adresse :
-
-**Structure PostalTradeAddress :**
-```xml
-<ram:PostalTradeAddress>
-  <ram:PostcodeCode>75001</ram:PostcodeCode>
-  <ram:LineOne>123 rue de la Paix</ram:LineOne>
-  <ram:CityName>Paris</ram:CityName>
-  <ram:CountryID>FR</ram:CountryID>
-</ram:PostalTradeAddress>
-```
-
-**Éléments supportés :**
-- ✅ `PostcodeCode` : Code postal
-- ✅ `LineOne` : Adresse ligne 1 (obligatoire)
-- ✅ `CityName` : Ville (obligatoire)
-- ✅ `CountryID` : Code pays ISO (obligatoire)
-
-## Flux de génération
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ 1. Formulaire Step 1 → Collecte données facture/client  │
-└───────────────┬─────────────────────────────────────────┘
-                ↓
-┌─────────────────────────────────────────────────────────┐
-│ 2. Formulaire Step 2 → Lignes de facturation + calculs  │
-└───────────────┬─────────────────────────────────────────┘
-                ↓
-┌─────────────────────────────────────────────────────────┐
-│ 3. pdf_generator.py → Génère PDF (ReportLab)            │
-│    → Polices Liberation Sans embarquées (TTF subset)    │
-│    → OutputIntent sRGB avec profil ICC                  │
-└───────────────┬─────────────────────────────────────────┘
-                ↓
-┌─────────────────────────────────────────────────────────┐
-│ 4. facturx_generator.py → Génère XML Factur-X (EN16931)  │
-│    → Guideline 1.07 D22B, date livraison, Schematron OK │
-└───────────────┬─────────────────────────────────────────┘
-                ↓
-┌─────────────────────────────────────────────────────────┐
-│ 5. factur-x.generate_from_binary() → Validation XSD     │
-│    → Combine PDF + XML → Métadonnées PDF/A-3            │
-└───────────────┬─────────────────────────────────────────┘
-                ↓
-┌─────────────────────────────────────────────────────────┐
-│ 6. Sauvegarde (xml_storage + pdf_storage)               │
-│    → Insert en base si is_db_pg=True                    │
-└───────────────┬─────────────────────────────────────────┘
-                ↓
-┌─────────────────────────────────────────────────────────┐
-│ 7. Step 3 - Récapitulatif                               │
-│    → Résumé, téléchargement PDF, nouvelle facture       │
-└─────────────────────────────────────────────────────────┘
-```
-
 ## Base de données PostgreSQL (optionnel)
 
-### Prérequis
+Si `is_db_pg=True`, créer `.env` ou `.env.local` :
 
-Si `is_db_pg=True`, le driver PostgreSQL doit être installé :
-
-```bash
-uv add psycopg2-binary
-```
-
-### Activation
-
-1. **Créer `.env` ou `.env.local` :**
 ```env
 DB_HOST=localhost
 DB_PORT=5432
@@ -430,67 +137,39 @@ DB_USER=postgres
 DB_PASSWORD=votre_mot_de_passe
 ```
 
-2. **Activer dans la configuration :**
-```ini
-# resources/config/ma-conf.txt
-is_db_pg=True
+### Numérotation automatique
+
+Lorsque `is_num_facturx_auto=True` et `is_db_pg=True`, le numéro de facture est généré au format `FAC-YYYY-MM-NNNN` (ex: `FAC-2026-02-0001`).
+
+Un **verrouillage transactionnel** garantit l'unicité en accès concurrent : lock pendant la génération (XML + PDF + insertion), relâché au commit/rollback.
+
+## Structure du projet
+
+```
+Generate-FacturX-PY/
+├── app.py                        # Application Flask (routes, validation, session)
+├── facturx_generator.py          # Générateur XML Factur-X (profil EN16931)
+├── pdf_generator.py              # Générateur PDF ReportLab + OutputIntent ICC
+├── test_facturx.py               # Script de test de génération
+├── pyproject.toml                # Configuration uv et dépendances
+├── resources/
+│   ├── config/ma-conf.txt        # Configuration émetteur
+│   ├── fonts/                    # Polices Liberation Sans (PDF/A-3)
+│   ├── logos/                    # Logos entreprise
+│   ├── profiles/sRGB.icc        # Profil ICC pour OutputIntent PDF/A-3
+│   ├── sql/                      # Scripts SQL (si PostgreSQL activé)
+│   └── templates/                # Templates HTML Jinja2 + XMP
+└── data/                         # Fichiers générés (gitignored)
 ```
 
-L'application vérifiera automatiquement la connexion au démarrage.
+## Conformité
 
-### Numérotation automatique des factures
-
-Lorsque `is_num_facturx_auto=True` **et** `is_db_pg=True`, le numéro de facture est généré automatiquement à partir de la base de données.
-
-**Format :** `FAC-YYYY-MM-NNNN`
-
-| Segment  | Description                              | Exemple        |
-|----------|------------------------------------------|----------------|
-| `FAC`    | Préfixe fixe                             | `FAC`          |
-| `YYYY`   | Année en cours                           | `2026`         |
-| `MM`     | Mois en cours                            | `02`           |
-| `NNNN`   | Entier auto-incrémenté, unique           | `0001`, `0042` |
-
-**Exemples :** `FAC-2026-02-0001`, `FAC-2026-02-0002`, `FAC-2026-03-0001`
-
-**Fonctionnement :**
-
-1. Requête en base pour récupérer le numéro de la facture la plus récente
-2. Extraction de l'entier `NNNN` par regex depuis le dernier numéro
-3. Incrémentation de +1 et recomposition du nouveau numéro
-4. **Verrouillage transactionnel** (lock) de la table pendant toute la génération (XML + PDF + insertion en base) pour garantir l'unicité du numéro en accès concurrent
-5. Le lock est relâché une fois l'insertion terminée (commit) ou en cas d'erreur (rollback)
-
-```ini
-# resources/config/ma-conf.txt
-is_db_pg=True
-is_num_facturx_auto=True
-```
-
-> **Note :** Si `is_num_facturx_auto=False` (défaut), le numéro de facture est saisi manuellement dans le formulaire step 1.
-
-## Commandes utiles
-
-```bash
-# Lancer l'application
-uv run python app.py
-
-# Tester la génération Factur-X
-uv run python test_facturx.py
-
-# Ajouter une dépendance
-uv add <package>
-
-# Mettre à jour les dépendances
-uv sync --upgrade
-
-# Nettoyer le cache
-uv cache clean
-
-# Vérifier la version Python
-uv run python --version
-```
-
+| Standard | Détail |
+|----------|--------|
+| **EN 16931** | Profil EN16931 (Factur-X 1.07, CII D22B) |
+| **XSD** | Validation automatique à la génération |
+| **Schematron** | PEPPOL-EN16931, catégories TVA (S/Z/E/AE/G/K/O) avec BT-120/BT-121 |
+| **PDF/A-3B** | Polices Liberation Sans embarquées, profil ICC sRGB, validé VeraPDF |
 
 ## Ressources
 
@@ -505,8 +184,4 @@ Projet privé SNTPK.
 
 ---
 
-**Version :** 1.1.0
-**Python :** 3.12+
-**Profil Factur-X :** EN16931 (Factur-X 1.07, CII D22B)
-**Conformité :** PDF/A-3B (VeraPDF) + XSD + Schematron
-**Dernière mise à jour :** 2026-02-10
+**Version :** 1.1.0 | **Python :** 3.12+ | **Dernière mise à jour :** 2026-02-10
