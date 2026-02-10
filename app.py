@@ -575,7 +575,7 @@ def submit_step1():
     if errors:
         return jsonify({'success': False, 'errors': errors}), 400
 
-    # Upsert client en base si demandé
+    # Insertion du nouveau client en base si demandé
     if CONFIG.get('is_db_pg') is True and request.form.get('save_new_client') == '1':
         conn = None
         try:
@@ -585,16 +585,7 @@ def submit_step1():
                 """INSERT INTO client_metadata
                    (recipient_name, cie_legal_form, recipient_siret, recipient_vat_number,
                     recipient_address, recipient_postal_code, recipient_city, recipient_country_code)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (recipient_siret) DO UPDATE SET
-                    recipient_name = EXCLUDED.recipient_name,
-                    cie_legal_form = EXCLUDED.cie_legal_form,
-                    recipient_vat_number = EXCLUDED.recipient_vat_number,
-                    recipient_address = EXCLUDED.recipient_address,
-                    recipient_postal_code = EXCLUDED.recipient_postal_code,
-                    recipient_city = EXCLUDED.recipient_city,
-                    recipient_country_code = EXCLUDED.recipient_country_code,
-                    updated_at = CURRENT_TIMESTAMP""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
                     data['recipient_name'],
                     data['recipient_legal_form'],
@@ -612,6 +603,13 @@ def submit_step1():
         except Exception as e:
             if conn and not conn.closed:
                 conn.rollback()
+            # Violation de la contrainte UNIQUE sur recipient_siret
+            err_msg = str(e).lower()
+            if 'unique' in err_msg or 'duplicate' in err_msg or 'recipient_siret' in err_msg:
+                return jsonify({'success': False, 'errors': [
+                    {'field': 'recipient_siret',
+                     'message': f"Un client avec le SIRET {data['recipient_siret']} existe déjà dans la base. Utilisez la recherche pour le sélectionner."}
+                ]}), 400
             print(f"[WARNING] Échec de l'enregistrement du client: {e}")
         finally:
             if conn and not conn.closed:

@@ -718,6 +718,16 @@
                 e.preventDefault();
                 clearErrors();
 
+                {% if is_db_pg %}
+                // Popup de confirmation uniquement pour un nouveau client
+                const saveFlag = document.getElementById("saveNewClient");
+                if (saveFlag && saveFlag.value === "1") {
+                    if (!confirm("Voulez-vous enregistrer ce nouveau client dans la base de donnees ?")) {
+                        saveFlag.value = "0";
+                    }
+                }
+                {% endif %}
+
                 const formData = new FormData(e.target);
 
                 try {
