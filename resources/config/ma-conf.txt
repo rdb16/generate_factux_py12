@@ -1,6 +1,6 @@
 siren = "123456789"
 siret = "12345678900012"
-name = "Mon Entreprise DPONT LA JOIE"
+name = "Mon Entreprise DUPONT LA JOIE"
 address = "12 rue de la Paix"
 postal_code = "75001"
 city = "Paris"
