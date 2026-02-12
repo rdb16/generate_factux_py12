@@ -814,7 +814,7 @@
                     });
                     vatexSelect.style.display = '';
                     reasonInput.style.display = '';
-                    reasonInput.value = '';
+                    reasonInput.value = category === 'AE' ? 'TVA due par le preneur' : '';
                 }
                 updateTotals();
             }
