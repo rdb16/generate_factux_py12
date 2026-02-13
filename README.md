@@ -1,6 +1,6 @@
 # Generate-FacturX-PY
 
-Application Flask pour générer des factures électroniques au format Factur-X (norme EN 16931).
+Application Flask pour générer des python
 
 ## Description
 
@@ -20,6 +20,7 @@ Crée des **PDF Factur-X conformes** : PDF visuel (ReportLab) + XML embarqué (C
 git clone <url-du-repo> && cd Generate-FacturX-PY
 uv sync                          # Installer les dépendances
 uv run python app.py             # Lancer l'application (http://localhost:5000)
+# remplir d'abord le fichier de conf: voir ci-après
 uv run python test_facturx.py    # Tester la génération Factur-X
 uv add <package>                 # Ajouter une dépendance
 ```
@@ -198,4 +199,4 @@ Projet privé SNTPK.
 
 ---
 
-**Version :** 1.1.0 | **Python :** 3.12+ | **Dernière mise à jour :** 2026-02-10
+**Version :** 1.2.0 | **Python :** 3.12+ | **Dernière mise à jour :** 2026-02-10
