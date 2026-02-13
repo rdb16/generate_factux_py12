@@ -319,21 +319,24 @@ def generate_facturx_xml(data: dict) -> str:
         tax_type = ET.SubElement(tax, _qname('ram', 'TypeCode'))
         tax_type.text = 'VAT'
 
-        # BT-120 / BT-121 : motif d'exonération (requis pour catégories E, AE, G, K, O)
+        # BT-120 : motif d'exonération texte (requis pour catégories E, AE, G, K, O)
         category = vat_info['vat_category']
         if category in ('E', 'AE', 'G', 'K', 'O'):
             if vat_info.get('vat_exemption_reason'):
                 exemption_reason = ET.SubElement(tax, _qname('ram', 'ExemptionReason'))
                 exemption_reason.text = vat_info['vat_exemption_reason']
-            if vat_info.get('vat_exemption_code'):
-                exemption_code = ET.SubElement(tax, _qname('ram', 'ExemptionReasonCode'))
-                exemption_code.text = vat_info['vat_exemption_code']
 
         tax_base = ET.SubElement(tax, _qname('ram', 'BasisAmount'))
         tax_base.text = _format_amount(vat_info['base_ht'])
 
         tax_cat = ET.SubElement(tax, _qname('ram', 'CategoryCode'))
         tax_cat.text = category
+
+        # BT-121 : code motif d'exonération (après CategoryCode selon XSD)
+        if category in ('E', 'AE', 'G', 'K', 'O'):
+            if vat_info.get('vat_exemption_code'):
+                exemption_code = ET.SubElement(tax, _qname('ram', 'ExemptionReasonCode'))
+                exemption_code.text = vat_info['vat_exemption_code']
 
         tax_rate = ET.SubElement(tax, _qname('ram', 'RateApplicablePercent'))
         tax_rate.text = _format_amount(vat_info['rate'])
