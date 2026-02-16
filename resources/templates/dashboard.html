@@ -1,0 +1,519 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Facturation{% endblock %}
+{% block body_max_width %}1300px{% endblock %}
+{% block header_title %}Dashboard Facturation{% endblock %}
+{% block header_extra %} - Gestion des factures electroniques{% endblock %}
+{% block steps_wrapper %}{% endblock %}
+
+{% block extra_styles %}
+            /* Dashboard layout */
+            .dashboard {
+                padding: 24px 30px;
+            }
+
+            /* DB Status card */
+            .db-status-card {
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 16px 20px;
+                margin-bottom: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+            }
+            .db-status-left {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .db-indicator {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                background: #a0aec0;
+                flex-shrink: 0;
+            }
+            .db-indicator.connected {
+                background: #38a169;
+                box-shadow: 0 0 6px rgba(56, 161, 105, 0.4);
+            }
+            .db-indicator.disconnected {
+                background: #e53e3e;
+                box-shadow: 0 0 6px rgba(229, 62, 62, 0.4);
+            }
+            .db-info {
+                font-size: 13px;
+                color: #4a5568;
+            }
+            .db-info strong {
+                color: #1a202c;
+            }
+            .db-info .db-timestamp {
+                font-size: 11px;
+                color: #a0aec0;
+                margin-left: 12px;
+            }
+            .btn-test-db {
+                padding: 8px 16px;
+                background: #edf2f7;
+                color: #4a5568;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 12px;
+                font-weight: 500;
+                transition: all 0.2s;
+                white-space: nowrap;
+            }
+            .btn-test-db:hover {
+                background: #e2e8f0;
+            }
+            .btn-test-db:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            /* KPI cards */
+            .kpi-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 16px;
+                margin-bottom: 24px;
+            }
+            .kpi-card {
+                background: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 20px;
+                text-align: center;
+            }
+            .kpi-card .kpi-value {
+                font-size: 32px;
+                font-weight: 700;
+                color: #1a202c;
+                line-height: 1;
+            }
+            .kpi-card .kpi-label {
+                font-size: 12px;
+                font-weight: 600;
+                color: #718096;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-top: 8px;
+            }
+            .kpi-card.generated { border-top: 3px solid #667eea; }
+            .kpi-card.generated .kpi-value { color: #667eea; }
+            .kpi-card.transferred { border-top: 3px solid #38a169; }
+            .kpi-card.transferred .kpi-value { color: #38a169; }
+            .kpi-card.received { border-top: 3px solid #3182ce; }
+            .kpi-card.received .kpi-value { color: #3182ce; }
+            .kpi-card.error { border-top: 3px solid #e53e3e; }
+            .kpi-card.error .kpi-value { color: #e53e3e; }
+
+            /* Queries section */
+            .queries-section {
+                background: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                overflow: hidden;
+                margin-bottom: 24px;
+            }
+            .queries-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 16px 20px;
+                border-bottom: 1px solid #e2e8f0;
+                background: #f8fafc;
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+            .filters {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 13px;
+                color: #4a5568;
+            }
+            .filters label {
+                font-weight: 500;
+                white-space: nowrap;
+            }
+            .filters input[type="date"] {
+                padding: 6px 10px;
+                border: 1px solid #e2e8f0;
+                border-radius: 4px;
+                font-size: 13px;
+                background: white;
+            }
+            .filters input[type="date"]:focus {
+                outline: none;
+                border-color: #667eea;
+            }
+            .invoice-count {
+                font-size: 13px;
+                color: #718096;
+                font-weight: 500;
+            }
+
+            /* Tabs */
+            .tabs {
+                display: flex;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .tab {
+                padding: 12px 20px;
+                font-size: 13px;
+                font-weight: 500;
+                color: #718096;
+                background: none;
+                border: none;
+                border-bottom: 2px solid transparent;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .tab:hover {
+                color: #4a5568;
+                background: #f8fafc;
+            }
+            .tab.active {
+                color: #667eea;
+                border-bottom-color: #667eea;
+            }
+
+            /* Invoice table */
+            .invoice-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+            .invoice-table th {
+                text-align: left;
+                padding: 10px 16px;
+                background: #edf2f7;
+                color: #4a5568;
+                font-weight: 600;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+            .invoice-table th:last-child {
+                text-align: center;
+            }
+            .invoice-table th.col-amount {
+                text-align: right;
+            }
+            .invoice-table td {
+                padding: 12px 16px;
+                border-bottom: 1px solid #e2e8f0;
+                color: #1a202c;
+            }
+            .invoice-table td.col-amount {
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+                font-weight: 500;
+            }
+            .invoice-table td:last-child {
+                text-align: center;
+            }
+            .invoice-table tr:last-child td {
+                border-bottom: none;
+            }
+            .invoice-table tr:hover {
+                background: #f8fafc;
+            }
+            .invoice-table .empty-row td {
+                text-align: center;
+                color: #a0aec0;
+                font-style: italic;
+                padding: 24px 16px;
+            }
+
+            /* Status badges */
+            .badge {
+                display: inline-block;
+                padding: 3px 10px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+            .badge-ok {
+                background: #c6f6d5;
+                color: #276749;
+            }
+            .badge-ko {
+                background: #fed7d7;
+                color: #c53030;
+            }
+
+            /* Action bar */
+            .action-bar {
+                display: flex;
+                justify-content: flex-start;
+                gap: 12px;
+                padding-top: 4px;
+            }
+            .btn-action {
+                padding: 12px 24px;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s;
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .btn-action.primary {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            .btn-action.primary:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            }
+            .btn-action:disabled {
+                background: #e2e8f0;
+                color: #a0aec0;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
+            }
+
+            @media (max-width: 900px) {
+                .kpi-grid {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+            @media (max-width: 600px) {
+                .kpi-grid {
+                    grid-template-columns: 1fr;
+                }
+                .queries-header {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+                .filters {
+                    flex-wrap: wrap;
+                }
+            }
+{% endblock %}
+
+{% block content %}
+            <div class="dashboard">
+                <!-- DB Status -->
+                <div class="db-status-card">
+                    <div class="db-status-left">
+                        <div class="db-indicator" id="dbIndicator"></div>
+                        <div class="db-info">
+                            <strong id="dbStatusText">Test en cours...</strong>
+                            &mdash; {{ db_host }}/<strong>{{ db_name }}</strong>
+                            <span class="db-timestamp" id="dbTimestamp"></span>
+                        </div>
+                    </div>
+                    <button class="btn-test-db" id="btnTestDb" onclick="testConnection()">
+                        Tester la connexion
+                    </button>
+                </div>
+
+                <!-- KPI cards -->
+                <div class="kpi-grid">
+                    <div class="kpi-card generated">
+                        <div class="kpi-value" id="kpiGenerated">-</div>
+                        <div class="kpi-label">Generees</div>
+                    </div>
+                    <div class="kpi-card transferred">
+                        <div class="kpi-value" id="kpiTransferred">-</div>
+                        <div class="kpi-label">Transferees</div>
+                    </div>
+                    <div class="kpi-card received">
+                        <div class="kpi-value" id="kpiReceived">-</div>
+                        <div class="kpi-label">Recues</div>
+                    </div>
+                    <div class="kpi-card error">
+                        <div class="kpi-value" id="kpiError">-</div>
+                        <div class="kpi-label">En erreur</div>
+                    </div>
+                </div>
+
+                <!-- Queries section -->
+                <div class="queries-section">
+                    <div class="queries-header">
+                        <div class="filters">
+                            <label for="dateFrom">Depuis le</label>
+                            <input type="date" id="dateFrom" onchange="loadInvoices()">
+                            <label for="dateTo">Jusqu'au</label>
+                            <input type="date" id="dateTo" onchange="loadInvoices()">
+                        </div>
+                        <div class="invoice-count" id="invoiceCount"></div>
+                    </div>
+                    <div class="tabs">
+                        <button class="tab active" data-tab="all" onclick="switchTab('all')">Toutes les factures</button>
+                        <button class="tab" data-tab="recent" onclick="switchTab('recent')">Factures recentes</button>
+                    </div>
+                    <table class="invoice-table">
+                        <thead>
+                            <tr>
+                                <th>Numero</th>
+                                <th>Client</th>
+                                <th>Date</th>
+                                <th class="col-amount">Montant TTC</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invoiceTableBody">
+                            <tr class="empty-row"><td colspan="5">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Action bar -->
+                <div class="action-bar">
+                    <a href="/invoice/step1" class="btn-action primary">
+                        Creer une facture
+                    </a>
+                    <button class="btn-action" disabled title="Fonctionnalite a venir">
+                        Envoyer vers PA
+                    </button>
+                    <button class="btn-action" disabled title="Fonctionnalite a venir">
+                        Recuperer des factures
+                    </button>
+                </div>
+            </div>
+{% endblock %}
+
+{% block scripts %}
+        <script>
+            let currentTab = 'all';
+
+            function escapeHtml(str) {
+                if (str === null || str === undefined) return '';
+                const s = String(str);
+                const div = document.createElement('div');
+                div.appendChild(document.createTextNode(s));
+                return div.innerHTML;
+            }
+
+            function initDates() {
+                const today = new Date();
+                const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                document.getElementById('dateFrom').value = firstOfMonth.toISOString().slice(0, 10);
+                document.getElementById('dateTo').value = today.toISOString().slice(0, 10);
+            }
+
+            async function testConnection() {
+                const btn = document.getElementById('btnTestDb');
+                const indicator = document.getElementById('dbIndicator');
+                const statusText = document.getElementById('dbStatusText');
+                const timestamp = document.getElementById('dbTimestamp');
+
+                btn.disabled = true;
+                btn.textContent = 'Test en cours...';
+                indicator.className = 'db-indicator';
+                statusText.textContent = 'Test en cours...';
+
+                try {
+                    const resp = await fetch('/api/db/test-connection');
+                    const data = await resp.json();
+                    if (data.connected) {
+                        indicator.className = 'db-indicator connected';
+                        statusText.textContent = 'Connecte';
+                    } else {
+                        indicator.className = 'db-indicator disconnected';
+                        statusText.textContent = 'Deconnecte';
+                    }
+                    timestamp.textContent = data.timestamp ? ('Dernier test : ' + data.timestamp) : '';
+                } catch (err) {
+                    indicator.className = 'db-indicator disconnected';
+                    statusText.textContent = 'Erreur';
+                    timestamp.textContent = '';
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Tester la connexion';
+                }
+            }
+
+            async function loadStats() {
+                try {
+                    const resp = await fetch('/api/dashboard/stats');
+                    const data = await resp.json();
+                    document.getElementById('kpiGenerated').textContent = data.generated;
+                    document.getElementById('kpiTransferred').textContent = data.transferred;
+                    document.getElementById('kpiReceived').textContent = data.received;
+                    document.getElementById('kpiError').textContent = data.error;
+                } catch (err) {
+                    console.error('Erreur chargement stats:', err);
+                }
+            }
+
+            async function loadInvoices() {
+                const tbody = document.getElementById('invoiceTableBody');
+                const countEl = document.getElementById('invoiceCount');
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Chargement...</td></tr>';
+
+                const dateFrom = document.getElementById('dateFrom').value;
+                const dateTo = document.getElementById('dateTo').value;
+
+                let url = '/api/dashboard/invoices?tab=' + encodeURIComponent(currentTab);
+                if (currentTab === 'all') {
+                    if (dateFrom) url += '&date_from=' + encodeURIComponent(dateFrom);
+                    if (dateTo) url += '&date_to=' + encodeURIComponent(dateTo);
+                }
+
+                try {
+                    const resp = await fetch(url);
+                    const data = await resp.json();
+                    const invoices = data.invoices || [];
+
+                    countEl.textContent = invoices.length + ' facture(s) trouvee(s)';
+
+                    if (invoices.length === 0) {
+                        tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Aucune facture trouvee</td></tr>';
+                        return;
+                    }
+
+                    let html = '';
+                    invoices.forEach(function(inv) {
+                        const statusClass = inv.status === 'KO' ? 'badge-ko' : 'badge-ok';
+                        const statusLabel = inv.status === 'KO' ? 'KO' : 'OK';
+                        const amount = inv.total_ttc !== null && inv.total_ttc !== undefined
+                            ? parseFloat(inv.total_ttc).toFixed(2) + ' EUR'
+                            : '-';
+                        html += '<tr>' +
+                            '<td>' + escapeHtml(inv.invoice_num) + '</td>' +
+                            '<td>' + escapeHtml(inv.company_name) + '</td>' +
+                            '<td>' + escapeHtml(inv.invoice_date) + '</td>' +
+                            '<td class="col-amount">' + escapeHtml(amount) + '</td>' +
+                            '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
+                            '</tr>';
+                    });
+                    tbody.innerHTML = html;
+                } catch (err) {
+                    console.error('Erreur chargement factures:', err);
+                    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Erreur de chargement</td></tr>';
+                    countEl.textContent = '';
+                }
+            }
+
+            function switchTab(tab) {
+                currentTab = tab;
+                document.querySelectorAll('.tab').forEach(function(t) {
+                    t.classList.toggle('active', t.dataset.tab === tab);
+                });
+                loadInvoices();
+            }
+
+            // Init
+            initDates();
+            testConnection();
+            loadStats();
+            loadInvoices();
+        </script>
+{% endblock %}

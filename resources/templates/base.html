@@ -172,6 +172,7 @@
                 </div>
             </div>
 
+            {% block steps_wrapper %}
             <div class="steps">
                 {% block steps %}
                 <div class="step">
@@ -190,6 +191,7 @@
                 </div>
                 {% endblock %}
             </div>
+            {% endblock %}
 
             {% block before_content %}{% endblock %}
 

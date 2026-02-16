@@ -204,14 +204,15 @@ def get_next_invoice_number(conn) -> str:
 
 
 def insert_sent_invoice(conn, invoice_num: str, company_name: str, company_siret: str,
-                        xml_content: str, pdf_path: str, invoice_date: str) -> None:
+                        xml_content: str, pdf_path: str, invoice_date: str,
+                        total_ttc=None) -> None:
     """Insère la facture dans sent_invoices (dans la transaction en cours)."""
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO sent_invoices
-           (invoice_num, company_name, company_siret, xml_facture, pdf_path, invoice_date)
-           VALUES (%s, %s, %s, %s::xml, %s, %s)""",
-        (invoice_num, company_name, company_siret, xml_content, pdf_path, invoice_date),
+           (invoice_num, company_name, company_siret, xml_facture, pdf_path, invoice_date, total_ttc)
+           VALUES (%s, %s, %s, %s::xml, %s, %s, %s)""",
+        (invoice_num, company_name, company_siret, xml_content, pdf_path, invoice_date, total_ttc),
     )
     cursor.close()
 
@@ -460,6 +461,32 @@ def get_logo_url() -> str:
 
 @app.route('/')
 def index():
+    """Redirige vers le dashboard si PostgreSQL activé, sinon vers step1."""
+    if CONFIG.get('is_db_pg') is True:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('show_step1'))
+
+
+@app.route('/dashboard')
+def dashboard():
+    """Affiche le tableau de bord facturation (requiert is_db_pg=True)."""
+    if CONFIG.get('is_db_pg') is not True:
+        return redirect(url_for('show_step1'))
+
+    db_host = os.environ.get('DB_URL', 'localhost')
+    db_name = os.environ.get('DB_NAME', 'k_factur_x')
+
+    return render_template(
+        'dashboard.html',
+        logo_path=get_logo_url(),
+        emitter=EMITTER,
+        db_host=db_host,
+        db_name=db_name,
+    )
+
+
+@app.route('/invoice/step1', methods=['GET'])
+def show_step1():
     """Affiche le formulaire step1."""
     next_invoice_number = None
     client_count = 0
@@ -605,6 +632,108 @@ def search_clients():
         return jsonify({'results': [], 'error': str(e)}), 500
 
 
+@app.route('/api/db/test-connection')
+def test_db_connection():
+    """Teste la connexion à la base de données PostgreSQL."""
+    timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    try:
+        conn = get_db_connection()
+        conn.close()
+        return jsonify({
+            'connected': True,
+            'host': os.environ.get('DB_URL', 'localhost'),
+            'database': os.environ.get('DB_NAME', 'k_factur_x'),
+            'timestamp': timestamp,
+        })
+    except Exception as e:
+        print(f"[ERROR] Test connexion BDD: {e}")
+        return jsonify({
+            'connected': False,
+            'host': os.environ.get('DB_URL', 'localhost'),
+            'database': os.environ.get('DB_NAME', 'k_factur_x'),
+            'timestamp': timestamp,
+        })
+
+
+@app.route('/api/dashboard/stats')
+def dashboard_stats():
+    """Retourne les KPI du dashboard (compteurs factures)."""
+    if CONFIG.get('is_db_pg') is not True:
+        return jsonify({'error': 'Base de données non activée'}), 404
+
+    stats = {'generated': 0, 'transferred': 0, 'received': 0, 'error': 0}
+    try:
+        with db_cursor() as (_conn, cursor):
+            cursor.execute("SELECT COUNT(*) FROM sent_invoices")
+            stats['generated'] = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE status = 'OK'")
+            stats['transferred'] = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE status = 'KO'")
+            stats['error'] = cursor.fetchone()[0]
+    except Exception as e:
+        print(f"[ERROR] Stats sent_invoices: {e}")
+
+    try:
+        with db_cursor() as (_conn, cursor):
+            cursor.execute("SELECT COUNT(*) FROM incoming_invoices")
+            stats['received'] = cursor.fetchone()[0]
+    except Exception as e:
+        print(f"[WARNING] Stats incoming_invoices: {e}")
+
+    return jsonify(stats)
+
+
+@app.route('/api/dashboard/invoices')
+def dashboard_invoices():
+    """Retourne la liste des factures pour le dashboard."""
+    if CONFIG.get('is_db_pg') is not True:
+        return jsonify({'error': 'Base de données non activée'}), 404
+
+    tab = request.args.get('tab', 'all')
+
+    try:
+        with db_cursor() as (_conn, cursor):
+            if tab == 'recent':
+                cursor.execute(
+                    """SELECT invoice_num, company_name, invoice_date, total_ttc, status
+                       FROM sent_invoices
+                       ORDER BY created_at DESC
+                       LIMIT 10"""
+                )
+            else:
+                date_from = request.args.get('date_from', '')
+                date_to = request.args.get('date_to', '')
+                cursor.execute(
+                    """SELECT invoice_num, company_name, invoice_date, total_ttc, status
+                       FROM sent_invoices
+                       WHERE invoice_date >= %s AND invoice_date <= %s
+                       ORDER BY invoice_date DESC, created_at DESC""",
+                    (date_from, date_to),
+                )
+
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+
+            invoices = []
+            for row in rows:
+                inv = dict(zip(columns, row))
+                # Sérialiser les types non-JSON
+                if inv.get('invoice_date'):
+                    inv['invoice_date'] = str(inv['invoice_date'])
+                if inv.get('total_ttc') is not None:
+                    inv['total_ttc'] = float(inv['total_ttc'])
+                if inv.get('status') is not None:
+                    inv['status'] = str(inv['status'])
+                invoices.append(inv)
+
+            return jsonify({'invoices': invoices})
+    except Exception as e:
+        print(f"[ERROR] Dashboard invoices: {e}")
+        return jsonify({'invoices': [], 'error': str(e)}), 500
+
+
 @app.route('/api/clients/count')
 def count_clients():
     """Retourne le nombre de clients en base (requiert is_db_pg=True)."""
@@ -627,11 +756,7 @@ def show_step2():
     invoice_data = session.get('invoice_data')
 
     if not invoice_data:
-        return render_template(
-            'invoice_step1.html',
-            logo_path=get_logo_url(),
-            emitter=EMITTER,
-        )
+        return redirect(url_for('show_step1'))
 
     invoice = {
         **invoice_data,
@@ -693,6 +818,10 @@ def generate_invoice():
 
     auto_num = is_auto_numbering()
 
+    # Calculer les totaux avant la génération pour disposer de total_ttc
+    invoice_totals = calculate_invoice_totals(lines)
+    total_ttc_value = float(invoice_totals['total_ttc'])
+
     try:
         # Si numérotation auto : ouvrir connexion, lock table, calcul du numéro
         if auto_num:
@@ -734,6 +863,7 @@ def generate_invoice():
                     xml_content=xml_content,
                     pdf_path=pdf_filepath,
                     invoice_date=invoice_data['issue_date'],
+                    total_ttc=total_ttc_value,
                 )
                 conn.commit()
                 print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
@@ -783,6 +913,7 @@ def generate_invoice():
                     xml_content=xml_content,
                     pdf_path=pdf_filepath,
                     invoice_date=invoice_data['issue_date'],
+                    total_ttc=total_ttc_value,
                 )
             print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
             db_status = 'ok'
@@ -790,11 +921,9 @@ def generate_invoice():
             print(f"[WARNING] Échec de l'insertion en base: {e}")
             db_status = 'erreur'
 
-    # Calculer les totaux et construire le récapitulatif en session
+    # Construire le récapitulatif en session
     def _fmt(value):
         return str(Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
-
-    invoice_totals = calculate_invoice_totals(lines)
 
     safe_number = _sanitize_invoice_number(invoice_data['invoice_number'])
     pdf_filename = f"facturx-{safe_number}.pdf"
@@ -881,9 +1010,11 @@ def download_pdf():
 
 @app.route('/invoice/new')
 def new_invoice():
-    """Vide la session et redirige vers step1."""
+    """Vide la session et redirige vers le dashboard ou step1."""
     session.clear()
-    return redirect(url_for('index'))
+    if CONFIG.get('is_db_pg') is True:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('show_step1'))
 
 
 if __name__ == '__main__':
