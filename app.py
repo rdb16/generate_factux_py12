@@ -691,20 +691,21 @@ def dashboard_invoices():
     if CONFIG.get('is_db_pg') is not True:
         return jsonify({'error': 'Base de données non activée'}), 404
 
-    tab = request.args.get('tab', 'all')
+    tab = request.args.get('tab', 'sent')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
 
     try:
         with db_cursor() as (_conn, cursor):
-            if tab == 'recent':
+            if tab == 'received':
                 cursor.execute(
-                    """SELECT invoice_num, company_name, invoice_date, total_ttc, status
-                       FROM sent_invoices
-                       ORDER BY created_at DESC
-                       LIMIT 10"""
+                    """SELECT invoice_num, company_name, invoice_date, total_ttc
+                       FROM incoming_invoices
+                       WHERE invoice_date >= %s AND invoice_date <= %s
+                       ORDER BY invoice_date DESC, received_at DESC""",
+                    (date_from, date_to),
                 )
             else:
-                date_from = request.args.get('date_from', '')
-                date_to = request.args.get('date_to', '')
                 cursor.execute(
                     """SELECT invoice_num, company_name, invoice_date, total_ttc, status
                        FROM sent_invoices

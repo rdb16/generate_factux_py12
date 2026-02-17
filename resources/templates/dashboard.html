@@ -100,8 +100,7 @@
                 font-size: 12px;
                 font-weight: 600;
                 color: #718096;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
+                letter-spacing: 0.3px;
                 margin-top: 8px;
             }
             .kpi-card.generated { border-top: 3px solid #667eea; }
@@ -112,6 +111,31 @@
             .kpi-card.received .kpi-value { color: #3182ce; }
             .kpi-card.error { border-top: 3px solid #e53e3e; }
             .kpi-card.error .kpi-value { color: #e53e3e; }
+
+            /* Clients card */
+            .clients-card {
+                background: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 16px 20px;
+                margin-bottom: 24px;
+                display: flex;
+                align-items: center;
+                gap: 14px;
+            }
+            .clients-card .clients-icon {
+                font-size: 22px;
+                color: #667eea;
+            }
+            .clients-card .clients-info {
+                font-size: 14px;
+                color: #4a5568;
+            }
+            .clients-card .clients-count {
+                font-weight: 700;
+                font-size: 18px;
+                color: #1a202c;
+            }
 
             /* Queries section */
             .queries-section {
@@ -327,19 +351,28 @@
                 <div class="kpi-grid">
                     <div class="kpi-card generated">
                         <div class="kpi-value" id="kpiGenerated">-</div>
-                        <div class="kpi-label">Generees</div>
+                        <div class="kpi-label">Factures generees</div>
                     </div>
                     <div class="kpi-card transferred">
                         <div class="kpi-value" id="kpiTransferred">-</div>
-                        <div class="kpi-label">Transferees</div>
+                        <div class="kpi-label">Factures transferees</div>
                     </div>
                     <div class="kpi-card received">
                         <div class="kpi-value" id="kpiReceived">-</div>
-                        <div class="kpi-label">Recues</div>
+                        <div class="kpi-label">Factures recues</div>
                     </div>
                     <div class="kpi-card error">
                         <div class="kpi-value" id="kpiError">-</div>
-                        <div class="kpi-label">En erreur</div>
+                        <div class="kpi-label">Factures en erreur</div>
+                    </div>
+                </div>
+
+                <!-- Clients count -->
+                <div class="clients-card">
+                    <span class="clients-icon">&#128101;</span>
+                    <div class="clients-info">
+                        <span class="clients-count" id="clientsCount">-</span>
+                        client(s) enregistre(s) en base
                     </div>
                 </div>
 
@@ -355,8 +388,8 @@
                         <div class="invoice-count" id="invoiceCount"></div>
                     </div>
                     <div class="tabs">
-                        <button class="tab active" data-tab="all" onclick="switchTab('all')">Toutes les factures</button>
-                        <button class="tab" data-tab="recent" onclick="switchTab('recent')">Factures recentes</button>
+                        <button class="tab active" data-tab="sent" onclick="switchTab('sent')">Factures generees</button>
+                        <button class="tab" data-tab="received" onclick="switchTab('received')">Factures recues</button>
                     </div>
                     <table class="invoice-table">
                         <thead>
@@ -391,7 +424,7 @@
 
 {% block scripts %}
         <script>
-            let currentTab = 'all';
+            let currentTab = 'sent';
 
             function escapeHtml(str) {
                 if (str === null || str === undefined) return '';
@@ -453,18 +486,39 @@
                 }
             }
 
+            async function loadClientsCount() {
+                try {
+                    const resp = await fetch('/api/clients/count');
+                    const data = await resp.json();
+                    document.getElementById('clientsCount').textContent = data.count;
+                } catch (err) {
+                    console.error('Erreur chargement clients:', err);
+                }
+            }
+
             async function loadInvoices() {
                 const tbody = document.getElementById('invoiceTableBody');
+                const thead = document.querySelector('.invoice-table thead tr');
                 const countEl = document.getElementById('invoiceCount');
-                tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Chargement...</td></tr>';
+                const colSpan = currentTab === 'sent' ? 5 : 4;
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="' + colSpan + '">Chargement...</td></tr>';
 
                 const dateFrom = document.getElementById('dateFrom').value;
                 const dateTo = document.getElementById('dateTo').value;
 
                 let url = '/api/dashboard/invoices?tab=' + encodeURIComponent(currentTab);
-                if (currentTab === 'all') {
-                    if (dateFrom) url += '&date_from=' + encodeURIComponent(dateFrom);
-                    if (dateTo) url += '&date_to=' + encodeURIComponent(dateTo);
+                if (dateFrom) url += '&date_from=' + encodeURIComponent(dateFrom);
+                if (dateTo) url += '&date_to=' + encodeURIComponent(dateTo);
+
+                // Adapter l'en-tete du tableau selon l'onglet
+                if (currentTab === 'sent') {
+                    thead.innerHTML =
+                        '<th>Numero</th><th>Client</th><th>Date</th>' +
+                        '<th class="col-amount">Montant TTC</th><th>Statut</th>';
+                } else {
+                    thead.innerHTML =
+                        '<th>Numero</th><th>Fournisseur</th><th>Date</th>' +
+                        '<th class="col-amount">Montant TTC</th>';
                 }
 
                 try {
@@ -475,29 +529,38 @@
                     countEl.textContent = invoices.length + ' facture(s) trouvee(s)';
 
                     if (invoices.length === 0) {
-                        tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Aucune facture trouvee</td></tr>';
+                        tbody.innerHTML = '<tr class="empty-row"><td colspan="' + colSpan + '">Aucune facture trouvee</td></tr>';
                         return;
                     }
 
                     let html = '';
                     invoices.forEach(function(inv) {
-                        const statusClass = inv.status === 'KO' ? 'badge-ko' : 'badge-ok';
-                        const statusLabel = inv.status === 'KO' ? 'KO' : 'OK';
                         const amount = inv.total_ttc !== null && inv.total_ttc !== undefined
                             ? parseFloat(inv.total_ttc).toFixed(2) + ' EUR'
                             : '-';
-                        html += '<tr>' +
-                            '<td>' + escapeHtml(inv.invoice_num) + '</td>' +
-                            '<td>' + escapeHtml(inv.company_name) + '</td>' +
-                            '<td>' + escapeHtml(inv.invoice_date) + '</td>' +
-                            '<td class="col-amount">' + escapeHtml(amount) + '</td>' +
-                            '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
-                            '</tr>';
+                        if (currentTab === 'sent') {
+                            const statusClass = inv.status === 'KO' ? 'badge-ko' : 'badge-ok';
+                            const statusLabel = inv.status === 'KO' ? 'KO' : 'OK';
+                            html += '<tr>' +
+                                '<td>' + escapeHtml(inv.invoice_num) + '</td>' +
+                                '<td>' + escapeHtml(inv.company_name) + '</td>' +
+                                '<td>' + escapeHtml(inv.invoice_date) + '</td>' +
+                                '<td class="col-amount">' + escapeHtml(amount) + '</td>' +
+                                '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
+                                '</tr>';
+                        } else {
+                            html += '<tr>' +
+                                '<td>' + escapeHtml(inv.invoice_num) + '</td>' +
+                                '<td>' + escapeHtml(inv.company_name) + '</td>' +
+                                '<td>' + escapeHtml(inv.invoice_date) + '</td>' +
+                                '<td class="col-amount">' + escapeHtml(amount) + '</td>' +
+                                '</tr>';
+                        }
                     });
                     tbody.innerHTML = html;
                 } catch (err) {
                     console.error('Erreur chargement factures:', err);
-                    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Erreur de chargement</td></tr>';
+                    tbody.innerHTML = '<tr class="empty-row"><td colspan="' + colSpan + '">Erreur de chargement</td></tr>';
                     countEl.textContent = '';
                 }
             }
@@ -514,6 +577,7 @@
             initDates();
             testConnection();
             loadStats();
+            loadClientsCount();
             loadInvoices();
         </script>
 {% endblock %}
