@@ -135,12 +135,24 @@ La base doit être créée localement au préalable (ex: `factur_x`). Les script
 createdb factur_x
 
 # Créer les tables
-psql -d factur_x -f resources/sql/create_table_sent_invoice.sql
+psql -d factur_x -f resources/sql/create_table_sent_invoices.sql
 psql -d factur_x -f resources/sql/create_table_client_metadata.sql
 
 # (optionnel) Insérer des clients de test
 psql -d factur_x -f resources/sql/insert_mock_client_metadata.sql
 ```
+
+### Statut des factures émises
+
+La table `sent_invoices` utilise un enum `invoice_status` avec trois valeurs :
+
+| Statut | Description | Contrainte sur `exception` |
+|--------|-------------|---------------------------|
+| `PENDING` | Facture générée, pas encore envoyée | Aucune |
+| `SENT-OK` | Envoi réussi | Aucune |
+| `SENT-ERROR` | Erreur à l'envoi | Obligatoire (non NULL, non vide) |
+
+Un trigger `check_exception_on_status` vérifie cette contrainte à chaque INSERT/UPDATE.
 
 Puis configurer `is_db_pg=True` dans `resources/config/ma-conf.txt` et créer `.env` ou `.env.local` :
 
@@ -199,4 +211,4 @@ Projet privé SNTPK.
 
 ---
 
-**Version :** 1.2.0 | **Python :** 3.12+ | **Dernière mise à jour :** 2026-02-10
+**Version :** 1.3.0 | **Python :** 3.12+ | **Dernière mise à jour :** 2026-02-17
