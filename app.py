@@ -816,23 +816,60 @@ def generate_invoice():
     if errors:
         return jsonify({'success': False, 'errors': errors}), 400
 
-    auto_num = is_auto_numbering()
-
-    # Calculer les totaux avant la génération pour disposer de total_ttc
-    invoice_totals = calculate_invoice_totals(lines)
-    total_ttc_value = float(invoice_totals['total_ttc'])
-
     try:
-        # Si numérotation auto : ouvrir connexion, lock table, calcul du numéro
-        if auto_num:
-            with db_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("LOCK TABLE sent_invoices IN EXCLUSIVE MODE")
-                cursor.close()
-                invoice_data['invoice_number'] = get_next_invoice_number(conn)
-                session['invoice_data'] = invoice_data
+        auto_num = is_auto_numbering()
 
-                # Génération dans la transaction (le lock empêche les doublons)
+        # Calculer les totaux avant la génération pour disposer de total_ttc
+        invoice_totals = calculate_invoice_totals(lines)
+        total_ttc_value = float(invoice_totals['total_ttc'])
+
+        try:
+            # Si numérotation auto : ouvrir connexion, lock table, calcul du numéro
+            if auto_num:
+                with db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("LOCK TABLE sent_invoices IN EXCLUSIVE MODE")
+                    cursor.close()
+                    invoice_data['invoice_number'] = get_next_invoice_number(conn)
+                    session['invoice_data'] = invoice_data
+
+                    # Génération dans la transaction (le lock empêche les doublons)
+                    full_data = {
+                        'emitter': EMITTER,
+                        'invoice': invoice_data,
+                        'lines': lines,
+                    }
+                    pdf_bytes = generate_invoice_pdf(full_data, logo_path=LOGO_PATH)
+                    xml_content = generate_facturx_xml(full_data)
+                    facturx_pdf_bytes = generate_from_binary(
+                        pdf_file=pdf_bytes,
+                        xml=xml_content.encode('utf-8'),
+                        flavor='factur-x',
+                        level='en16931',
+                        check_xsd=True,
+                        pdf_metadata={
+                            'author': EMITTER['name'],
+                            'title': f"Facture {invoice_data['invoice_number']}",
+                            'subject': 'Facture électronique Factur-X',
+                        }
+                    )
+                    xml_filepath = save_to_storage(xml_content, invoice_data['invoice_number'], 'xml')
+                    pdf_filepath = save_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'], 'pdf')
+
+                    insert_sent_invoice(
+                        conn,
+                        invoice_num=invoice_data['invoice_number'],
+                        company_name=invoice_data['recipient_name'],
+                        company_siret=invoice_data['recipient_siret'],
+                        xml_content=xml_content,
+                        pdf_path=pdf_filepath,
+                        invoice_date=invoice_data['issue_date'],
+                        total_ttc=total_ttc_value,
+                    )
+                    conn.commit()
+                    print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
+            else:
+                # Pas de numérotation auto : génération simple
                 full_data = {
                     'emitter': EMITTER,
                     'invoice': invoice_data,
@@ -855,129 +892,99 @@ def generate_invoice():
                 xml_filepath = save_to_storage(xml_content, invoice_data['invoice_number'], 'xml')
                 pdf_filepath = save_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'], 'pdf')
 
-                insert_sent_invoice(
-                    conn,
-                    invoice_num=invoice_data['invoice_number'],
-                    company_name=invoice_data['recipient_name'],
-                    company_siret=invoice_data['recipient_siret'],
-                    xml_content=xml_content,
-                    pdf_path=pdf_filepath,
-                    invoice_date=invoice_data['issue_date'],
-                    total_ttc=total_ttc_value,
-                )
-                conn.commit()
-                print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
-        else:
-            # Pas de numérotation auto : génération simple
-            full_data = {
-                'emitter': EMITTER,
-                'invoice': invoice_data,
-                'lines': lines,
-            }
-            pdf_bytes = generate_invoice_pdf(full_data, logo_path=LOGO_PATH)
-            xml_content = generate_facturx_xml(full_data)
-            facturx_pdf_bytes = generate_from_binary(
-                pdf_file=pdf_bytes,
-                xml=xml_content.encode('utf-8'),
-                flavor='factur-x',
-                level='en16931',
-                check_xsd=True,
-                pdf_metadata={
-                    'author': EMITTER['name'],
-                    'title': f"Facture {invoice_data['invoice_number']}",
-                    'subject': 'Facture électronique Factur-X',
-                }
-            )
-            xml_filepath = save_to_storage(xml_content, invoice_data['invoice_number'], 'xml')
-            pdf_filepath = save_to_storage(facturx_pdf_bytes, invoice_data['invoice_number'], 'pdf')
+        except Exception as e:
+            print(f"[ERROR] Échec de la génération Factur-X: {e}")
+            return jsonify({
+                'success': False,
+                'errors': [{'field': '_form', 'message': f'Erreur lors de la génération: {str(e)}'}]
+            }), 500
 
+        # Insérer en base si is_db_pg activé (sans auto_num, l'insertion auto_num est déjà faite)
+        db_status = 'non_applicable'
+        if auto_num:
+            db_status = 'ok'
+        elif CONFIG.get('is_db_pg') is True:
+            try:
+                with db_cursor(commit=True) as (db_conn, _cursor):
+                    insert_sent_invoice(
+                        db_conn,
+                        invoice_num=invoice_data['invoice_number'],
+                        company_name=invoice_data['recipient_name'],
+                        company_siret=invoice_data['recipient_siret'],
+                        xml_content=xml_content,
+                        pdf_path=pdf_filepath,
+                        invoice_date=invoice_data['issue_date'],
+                        total_ttc=total_ttc_value,
+                    )
+                print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
+                db_status = 'ok'
+            except Exception as e:
+                print(f"[WARNING] Échec de l'insertion en base: {e}")
+                db_status = 'erreur'
+
+        # Construire le récapitulatif en session
+        def _fmt(value):
+            return str(Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+
+        safe_number = _sanitize_invoice_number(invoice_data['invoice_number'])
+        pdf_filename = f"facturx-{safe_number}.pdf"
+        xml_filename = f"facturx-{safe_number}.xml"
+
+        summary_lines = []
+        for line in lines:
+            lt = calculate_line_totals(line)
+            vat_display = str(lt['vat_rate'])
+            if lt['vat_category'] != 'S':
+                vat_display += f" ({lt['vat_category']})"
+            summary_lines.append({
+                'description': line['description'],
+                'quantity': str(lt['quantity']),
+                'unit_price': _fmt(lt['unit_price']),
+                'vat_rate': vat_display,
+                'net_ht': _fmt(lt['net_ht']),
+                'discount_amount': _fmt(lt['discount_amount']),
+            })
+
+        vat_breakdown = []
+        for rate_key in sorted(invoice_totals['vat_breakdown'].keys(), key=lambda k: invoice_totals['vat_breakdown'][k]['rate'], reverse=True):
+            info = invoice_totals['vat_breakdown'][rate_key]
+            rate_display = str(info['rate'])
+            if info.get('vat_category', 'S') != 'S':
+                rate_display += f" ({info['vat_category']})"
+            vat_breakdown.append({
+                'rate': rate_display,
+                'base_ht': _fmt(info['base_ht']),
+                'vat_amount': _fmt(info['vat_amount']),
+            })
+
+        session['invoice_summary'] = {
+            'invoice_number': invoice_data['invoice_number'],
+            'type_code': invoice_data['type_code'],
+            'type_label': TYPE_LABELS.get(invoice_data['type_code'], 'Facture'),
+            'currency_code': invoice_data.get('currency_code', 'EUR'),
+            'issue_date': format_date_display(invoice_data['issue_date']),
+            'due_date': format_date_display(invoice_data.get('due_date', '')),
+            'recipient_name': invoice_data['recipient_name'],
+            'recipient_siret': invoice_data['recipient_siret'],
+            'emitter_name': EMITTER['name'],
+            'emitter_siret': EMITTER['siret'],
+            'lines': summary_lines,
+            'total_ht': _fmt(invoice_totals['total_ht']),
+            'total_vat': _fmt(invoice_totals['total_vat']),
+            'total_ttc': _fmt(invoice_totals['total_ttc']),
+            'vat_breakdown': vat_breakdown,
+            'pdf_filename': pdf_filename,
+            'xml_filename': xml_filename,
+            'db_status': db_status,
+        }
+
+        return jsonify({'success': True, 'redirect': '/invoice/step3'})
     except Exception as e:
-        print(f"[ERROR] Échec de la génération Factur-X: {e}")
+        print(f"[ERROR] Erreur inattendue lors de la génération: {e}")
         return jsonify({
             'success': False,
-            'errors': [{'field': '_form', 'message': f'Erreur lors de la génération: {str(e)}'}]
+            'errors': [{'field': '_form', 'message': f'Erreur inattendue: {str(e)}'}]
         }), 500
-
-    # Insérer en base si is_db_pg activé (sans auto_num, l'insertion auto_num est déjà faite)
-    db_status = 'non_applicable'
-    if auto_num:
-        db_status = 'ok'
-    elif CONFIG.get('is_db_pg') is True:
-        try:
-            with db_cursor(commit=True) as (db_conn, _cursor):
-                insert_sent_invoice(
-                    db_conn,
-                    invoice_num=invoice_data['invoice_number'],
-                    company_name=invoice_data['recipient_name'],
-                    company_siret=invoice_data['recipient_siret'],
-                    xml_content=xml_content,
-                    pdf_path=pdf_filepath,
-                    invoice_date=invoice_data['issue_date'],
-                    total_ttc=total_ttc_value,
-                )
-            print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
-            db_status = 'ok'
-        except Exception as e:
-            print(f"[WARNING] Échec de l'insertion en base: {e}")
-            db_status = 'erreur'
-
-    # Construire le récapitulatif en session
-    def _fmt(value):
-        return str(Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
-
-    safe_number = _sanitize_invoice_number(invoice_data['invoice_number'])
-    pdf_filename = f"facturx-{safe_number}.pdf"
-    xml_filename = f"facturx-{safe_number}.xml"
-
-    summary_lines = []
-    for line in lines:
-        lt = calculate_line_totals(line)
-        vat_display = str(lt['vat_rate'])
-        if lt['vat_category'] != 'S':
-            vat_display += f" ({lt['vat_category']})"
-        summary_lines.append({
-            'description': line['description'],
-            'quantity': str(lt['quantity']),
-            'unit_price': _fmt(lt['unit_price']),
-            'vat_rate': vat_display,
-            'net_ht': _fmt(lt['net_ht']),
-            'discount_amount': _fmt(lt['discount_amount']),
-        })
-
-    vat_breakdown = []
-    for rate_key in sorted(invoice_totals['vat_breakdown'].keys(), key=lambda k: invoice_totals['vat_breakdown'][k]['rate'], reverse=True):
-        info = invoice_totals['vat_breakdown'][rate_key]
-        rate_display = str(info['rate'])
-        if info.get('vat_category', 'S') != 'S':
-            rate_display += f" ({info['vat_category']})"
-        vat_breakdown.append({
-            'rate': rate_display,
-            'base_ht': _fmt(info['base_ht']),
-            'vat_amount': _fmt(info['vat_amount']),
-        })
-
-    session['invoice_summary'] = {
-        'invoice_number': invoice_data['invoice_number'],
-        'type_code': invoice_data['type_code'],
-        'type_label': TYPE_LABELS.get(invoice_data['type_code'], 'Facture'),
-        'currency_code': invoice_data.get('currency_code', 'EUR'),
-        'issue_date': format_date_display(invoice_data['issue_date']),
-        'due_date': format_date_display(invoice_data.get('due_date', '')),
-        'recipient_name': invoice_data['recipient_name'],
-        'recipient_siret': invoice_data['recipient_siret'],
-        'emitter_name': EMITTER['name'],
-        'emitter_siret': EMITTER['siret'],
-        'lines': summary_lines,
-        'total_ht': _fmt(invoice_totals['total_ht']),
-        'total_vat': _fmt(invoice_totals['total_vat']),
-        'total_ttc': _fmt(invoice_totals['total_ttc']),
-        'vat_breakdown': vat_breakdown,
-        'pdf_filename': pdf_filename,
-        'xml_filename': xml_filename,
-        'db_status': db_status,
-    }
-
-    return jsonify({'success': True, 'redirect': '/invoice/step3'})
 
 
 @app.route('/invoice/step3')
