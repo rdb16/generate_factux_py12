@@ -37,6 +37,7 @@ Application Flask générant des factures électroniques au format Factur-X (nor
 ### Configuration (`resources/config/ma-conf.txt`)
 
 Format clé=valeur. Champs émetteur validés au démarrage :
+
 - `siret` (14 chiffres), `siren` (9 chiffres), `bic`, `num_tva`, `name`, `address`
 - `logo` : Fallback sur `./resources/logos/underwork.jpeg` si absent/invalide
 - `is_db_pg` : Si `True`, requiert `.env` ou `.env.local` avec credentials PostgreSQL
@@ -50,6 +51,7 @@ Format clé=valeur. Champs émetteur validés au démarrage :
 ## Versioning
 
 Lors d'un changement de version, toujours mettre à jour **les deux fichiers** :
+
 - `pyproject.toml` → champ `version`
 - `README.md` → ligne `**Version :**` en bas du fichier
 
@@ -58,6 +60,7 @@ Lors d'un changement de version, toujours mettre à jour **les deux fichiers** :
 Profil : `urn:factur-x.eu:1p0:basic`
 
 Structure XML générée :
+
 - `ExchangedDocumentContext` → Guidelines
 - `ExchangedDocument` → ID, TypeCode, IssueDateTime
 - `SupplyChainTradeTransaction` → Lignes, parties (Seller/Buyer), TVA, totaux
