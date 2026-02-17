@@ -400,6 +400,14 @@
                     <input type="hidden" name="save_new_client" id="saveNewClient" value="0" />
                     {% endif %}
 
+                    {% if is_db_pg %}
+                    <div id="changeClientBar" style="display: none; margin-bottom: 12px;">
+                        <button type="button" class="btn-new-client" id="btnChangeClient">
+                            ← Changer de client
+                        </button>
+                    </div>
+                    {% endif %}
+
                     <div id="clientFields" {% if is_db_pg %}style="display: none;"{% endif %}>
                     <div class="field-group" style="margin-bottom: 16px">
                         <label for="recipient_name"
@@ -554,8 +562,22 @@
                 // Popup de confirmation uniquement pour un nouveau client
                 const saveFlag = document.getElementById("saveNewClient");
                 if (saveFlag && saveFlag.value === "1") {
-                    if (!confirm("Voulez-vous enregistrer ce nouveau client dans la base de donnees ?")) {
-                        saveFlag.value = "0";
+                    // Vérifier si le SIRET existe déjà en base
+                    const siretValue = document.getElementById("recipient_siret").value.trim();
+                    if (siretValue.length >= 2) {
+                        try {
+                            const checkResp = await fetch("/api/clients/search?q=" + encodeURIComponent(siretValue));
+                            const checkData = await checkResp.json();
+                            const alreadyExists = (checkData.results || []).some(c => c.recipient_siret === siretValue);
+                            if (alreadyExists) {
+                                saveFlag.value = "0";
+                            }
+                        } catch (_) { /* en cas d'erreur réseau, on laisse le popup s'afficher */ }
+                    }
+                    if (saveFlag.value === "1") {
+                        if (!confirm("Voulez-vous enregistrer ce nouveau client dans la base de donnees ?")) {
+                            saveFlag.value = "0";
+                        }
                     }
                 }
                 {% endif %}
@@ -599,6 +621,9 @@
                 const clientFields = document.getElementById("clientFields");
                 let debounceTimer = null;
 
+                const changeBtn = document.getElementById("btnChangeClient");
+                const changeBar = document.getElementById("changeClientBar");
+
                 const fieldMapping = {
                     recipient_name: "recipient_name",
                     cie_legal_form: "recipient_legal_form",
@@ -614,7 +639,16 @@
                 function showClientForm() {
                     searchPanel.style.display = "none";
                     clientFields.style.display = "block";
+                    changeBar.style.display = "block";
                 }
+
+                // Retour au panneau de recherche
+                changeBtn.addEventListener("click", function () {
+                    clientFields.style.display = "none";
+                    changeBar.style.display = "none";
+                    searchPanel.style.display = "block";
+                    saveNewClientInput.value = "0";
+                });
 
                 function fillClientFields(client) {
                     for (const [dbField, formField] of Object.entries(fieldMapping)) {
