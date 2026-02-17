@@ -2,6 +2,7 @@
 Application Flask pour générer des factures au format Factur-X.
 """
 
+import math
 import os
 import sys
 from datetime import datetime
@@ -667,10 +668,10 @@ def dashboard_stats():
             cursor.execute("SELECT COUNT(*) FROM sent_invoices")
             stats['generated'] = cursor.fetchone()[0]
 
-            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE status = 'OK'")
+            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE status = 'SENT-OK'")
             stats['transferred'] = cursor.fetchone()[0]
 
-            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE status = 'KO'")
+            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE status = 'SENT-ERROR'")
             stats['error'] = cursor.fetchone()[0]
     except Exception as e:
         print(f"[ERROR] Stats sent_invoices: {e}")
@@ -694,25 +695,68 @@ def dashboard_invoices():
     tab = request.args.get('tab', 'sent')
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
+    page = max(1, int(request.args.get('page', 1)))
+    per_page = max(1, min(100, int(request.args.get('per_page', 5))))
+    offset = (page - 1) * per_page
+
+    has_dates = bool(date_from and date_to)
 
     try:
         with db_cursor() as (_conn, cursor):
             if tab == 'received':
-                cursor.execute(
-                    """SELECT invoice_num, company_name, invoice_date, total_ttc
-                       FROM incoming_invoices
-                       WHERE invoice_date >= %s AND invoice_date <= %s
-                       ORDER BY invoice_date DESC, received_at DESC""",
-                    (date_from, date_to),
-                )
+                if has_dates:
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM incoming_invoices WHERE invoice_date >= %s AND invoice_date <= %s",
+                        (date_from, date_to),
+                    )
+                else:
+                    cursor.execute("SELECT COUNT(*) FROM incoming_invoices")
+                total = cursor.fetchone()[0]
+
+                if has_dates:
+                    cursor.execute(
+                        """SELECT invoice_num, company_name, invoice_date, total_ttc
+                           FROM incoming_invoices
+                           WHERE invoice_date >= %s AND invoice_date <= %s
+                           ORDER BY invoice_date DESC, received_at DESC
+                           LIMIT %s OFFSET %s""",
+                        (date_from, date_to, per_page, offset),
+                    )
+                else:
+                    cursor.execute(
+                        """SELECT invoice_num, company_name, invoice_date, total_ttc
+                           FROM incoming_invoices
+                           ORDER BY invoice_date DESC, received_at DESC
+                           LIMIT %s OFFSET %s""",
+                        (per_page, offset),
+                    )
             else:
-                cursor.execute(
-                    """SELECT invoice_num, company_name, invoice_date, total_ttc, status
-                       FROM sent_invoices
-                       WHERE invoice_date >= %s AND invoice_date <= %s
-                       ORDER BY invoice_date DESC, created_at DESC""",
-                    (date_from, date_to),
-                )
+                if has_dates:
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM sent_invoices WHERE invoice_date >= %s AND invoice_date <= %s",
+                        (date_from, date_to),
+                    )
+                else:
+                    cursor.execute("SELECT COUNT(*) FROM sent_invoices")
+                total = cursor.fetchone()[0]
+
+                if has_dates:
+                    cursor.execute(
+                        """SELECT invoice_num, company_name, invoice_date, total_ttc, status
+                           FROM sent_invoices
+                           WHERE invoice_date >= %s AND invoice_date <= %s
+                           ORDER BY invoice_date DESC, created_at DESC
+                           LIMIT %s OFFSET %s""",
+                        (date_from, date_to, per_page, offset),
+                    )
+                else:
+                    cursor.execute(
+                        """SELECT invoice_num, company_name, invoice_date, total_ttc, status
+                           FROM sent_invoices
+                           ORDER BY invoice_date DESC, created_at DESC
+                           LIMIT %s OFFSET %s""",
+                        (per_page, offset),
+                    )
 
             columns = [desc[0] for desc in cursor.description]
             rows = cursor.fetchall()
@@ -729,7 +773,14 @@ def dashboard_invoices():
                     inv['status'] = str(inv['status'])
                 invoices.append(inv)
 
-            return jsonify({'invoices': invoices})
+            total_pages = math.ceil(total / per_page) if total > 0 else 1
+            return jsonify({
+                'invoices': invoices,
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': total_pages,
+            })
     except Exception as e:
         print(f"[ERROR] Dashboard invoices: {e}")
         return jsonify({'invoices': [], 'error': str(e)}), 500

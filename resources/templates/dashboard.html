@@ -3,7 +3,7 @@
 {% block title %}Dashboard Facturation{% endblock %}
 {% block body_max_width %}1300px{% endblock %}
 {% block header_title %}Dashboard Facturation{% endblock %}
-{% block header_extra %} - Gestion des factures electroniques{% endblock %}
+{% block header_extra %} - Gestion des factures &eacute;lectroniques{% endblock %}
 {% block steps_wrapper %}{% endblock %}
 
 {% block extra_styles %}
@@ -274,6 +274,49 @@
                 background: #fed7d7;
                 color: #c53030;
             }
+            .badge-pending {
+                background: #fefcbf;
+                color: #975a16;
+            }
+
+            /* Pager */
+            .pager {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                padding: 12px 16px;
+                border-top: 1px solid #e2e8f0;
+                background: #f8fafc;
+            }
+            .pager button {
+                padding: 6px 12px;
+                border: 1px solid #e2e8f0;
+                border-radius: 4px;
+                background: white;
+                color: #4a5568;
+                font-size: 12px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .pager button:hover:not(:disabled) {
+                background: #edf2f7;
+                border-color: #cbd5e0;
+            }
+            .pager button:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+            .pager button.active {
+                background: #667eea;
+                color: white;
+                border-color: #667eea;
+            }
+            .pager .pager-info {
+                font-size: 12px;
+                color: #718096;
+                margin: 0 8px;
+            }
 
             /* Action bar */
             .action-bar {
@@ -351,15 +394,15 @@
                 <div class="kpi-grid">
                     <div class="kpi-card generated">
                         <div class="kpi-value" id="kpiGenerated">-</div>
-                        <div class="kpi-label">Factures generees</div>
+                        <div class="kpi-label">Factures g&eacute;n&eacute;r&eacute;es</div>
                     </div>
                     <div class="kpi-card transferred">
                         <div class="kpi-value" id="kpiTransferred">-</div>
-                        <div class="kpi-label">Factures transferees</div>
+                        <div class="kpi-label">Factures transf&eacute;r&eacute;es</div>
                     </div>
                     <div class="kpi-card received">
                         <div class="kpi-value" id="kpiReceived">-</div>
-                        <div class="kpi-label">Factures recues</div>
+                        <div class="kpi-label">Factures re&ccedil;ues</div>
                     </div>
                     <div class="kpi-card error">
                         <div class="kpi-value" id="kpiError">-</div>
@@ -372,7 +415,7 @@
                     <span class="clients-icon">&#128101;</span>
                     <div class="clients-info">
                         <span class="clients-count" id="clientsCount">-</span>
-                        client(s) enregistre(s) en base
+                        client(s) enregistr&eacute;(s) en base
                     </div>
                 </div>
 
@@ -381,20 +424,20 @@
                     <div class="queries-header">
                         <div class="filters">
                             <label for="dateFrom">Depuis le</label>
-                            <input type="date" id="dateFrom" onchange="loadInvoices()">
+                            <input type="date" id="dateFrom" onchange="currentPage=1; loadInvoices()">
                             <label for="dateTo">Jusqu'au</label>
-                            <input type="date" id="dateTo" onchange="loadInvoices()">
+                            <input type="date" id="dateTo" onchange="currentPage=1; loadInvoices()">
                         </div>
                         <div class="invoice-count" id="invoiceCount"></div>
                     </div>
                     <div class="tabs">
-                        <button class="tab active" data-tab="sent" onclick="switchTab('sent')">Factures generees</button>
-                        <button class="tab" data-tab="received" onclick="switchTab('received')">Factures recues</button>
+                        <button class="tab active" data-tab="sent" onclick="switchTab('sent')">Factures g&eacute;n&eacute;r&eacute;es</button>
+                        <button class="tab" data-tab="received" onclick="switchTab('received')">Factures re&ccedil;ues</button>
                     </div>
                     <table class="invoice-table">
                         <thead>
                             <tr>
-                                <th>Numero</th>
+                                <th>Num&eacute;ro</th>
                                 <th>Client</th>
                                 <th>Date</th>
                                 <th class="col-amount">Montant TTC</th>
@@ -405,18 +448,19 @@
                             <tr class="empty-row"><td colspan="5">Chargement...</td></tr>
                         </tbody>
                     </table>
+                    <div class="pager" id="pager"></div>
                 </div>
 
                 <!-- Action bar -->
                 <div class="action-bar">
                     <a href="/invoice/step1" class="btn-action primary">
-                        Creer une facture
+                        Cr&eacute;er une facture
                     </a>
-                    <button class="btn-action" disabled title="Fonctionnalite a venir">
+                    <button class="btn-action" disabled title="Fonctionnalit&eacute; &agrave; venir">
                         Envoyer vers PA
                     </button>
-                    <button class="btn-action" disabled title="Fonctionnalite a venir">
-                        Recuperer des factures
+                    <button class="btn-action" disabled title="Fonctionnalit&eacute; &agrave; venir">
+                        R&eacute;cup&eacute;rer des factures
                     </button>
                 </div>
             </div>
@@ -425,6 +469,8 @@
 {% block scripts %}
         <script>
             let currentTab = 'sent';
+            let currentPage = 1;
+            const perPage = 5;
 
             function escapeHtml(str) {
                 if (str === null || str === undefined) return '';
@@ -435,10 +481,8 @@
             }
 
             function initDates() {
-                const today = new Date();
-                const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-                document.getElementById('dateFrom').value = firstOfMonth.toISOString().slice(0, 10);
-                document.getElementById('dateTo').value = today.toISOString().slice(0, 10);
+                document.getElementById('dateFrom').value = '';
+                document.getElementById('dateTo').value = '';
             }
 
             async function testConnection() {
@@ -457,10 +501,10 @@
                     const data = await resp.json();
                     if (data.connected) {
                         indicator.className = 'db-indicator connected';
-                        statusText.textContent = 'Connecte';
+                        statusText.textContent = 'Connect\u00e9';
                     } else {
                         indicator.className = 'db-indicator disconnected';
-                        statusText.textContent = 'Deconnecte';
+                        statusText.textContent = 'D\u00e9connect\u00e9';
                     }
                     timestamp.textContent = data.timestamp ? ('Dernier test : ' + data.timestamp) : '';
                 } catch (err) {
@@ -500,24 +544,26 @@
                 const tbody = document.getElementById('invoiceTableBody');
                 const thead = document.querySelector('.invoice-table thead tr');
                 const countEl = document.getElementById('invoiceCount');
+                const pagerEl = document.getElementById('pager');
                 const colSpan = currentTab === 'sent' ? 5 : 4;
                 tbody.innerHTML = '<tr class="empty-row"><td colspan="' + colSpan + '">Chargement...</td></tr>';
+                pagerEl.innerHTML = '';
 
                 const dateFrom = document.getElementById('dateFrom').value;
                 const dateTo = document.getElementById('dateTo').value;
 
-                let url = '/api/dashboard/invoices?tab=' + encodeURIComponent(currentTab);
+                let url = '/api/dashboard/invoices?tab=' + encodeURIComponent(currentTab)
+                    + '&page=' + currentPage + '&per_page=' + perPage;
                 if (dateFrom) url += '&date_from=' + encodeURIComponent(dateFrom);
                 if (dateTo) url += '&date_to=' + encodeURIComponent(dateTo);
 
-                // Adapter l'en-tete du tableau selon l'onglet
                 if (currentTab === 'sent') {
                     thead.innerHTML =
-                        '<th>Numero</th><th>Client</th><th>Date</th>' +
+                        '<th>Num\u00e9ro</th><th>Client</th><th>Date</th>' +
                         '<th class="col-amount">Montant TTC</th><th>Statut</th>';
                 } else {
                     thead.innerHTML =
-                        '<th>Numero</th><th>Fournisseur</th><th>Date</th>' +
+                        '<th>Num\u00e9ro</th><th>Fournisseur</th><th>Date</th>' +
                         '<th class="col-amount">Montant TTC</th>';
                 }
 
@@ -525,11 +571,13 @@
                     const resp = await fetch(url);
                     const data = await resp.json();
                     const invoices = data.invoices || [];
+                    const total = data.total || 0;
+                    const totalPages = data.total_pages || 1;
 
-                    countEl.textContent = invoices.length + ' facture(s) trouvee(s)';
+                    countEl.textContent = total + ' facture(s) trouv\u00e9e(s)';
 
                     if (invoices.length === 0) {
-                        tbody.innerHTML = '<tr class="empty-row"><td colspan="' + colSpan + '">Aucune facture trouvee</td></tr>';
+                        tbody.innerHTML = '<tr class="empty-row"><td colspan="' + colSpan + '">Aucune facture trouv\u00e9e</td></tr>';
                         return;
                     }
 
@@ -539,8 +587,9 @@
                             ? parseFloat(inv.total_ttc).toFixed(2) + ' EUR'
                             : '-';
                         if (currentTab === 'sent') {
-                            const statusClass = inv.status === 'KO' ? 'badge-ko' : 'badge-ok';
-                            const statusLabel = inv.status === 'KO' ? 'KO' : 'OK';
+                            const st = inv.status || '';
+                            const statusClass = st === 'SENT-ERROR' ? 'badge-ko' : (st === 'SENT-OK' ? 'badge-ok' : 'badge-pending');
+                            const statusLabel = st === 'SENT-ERROR' ? 'Erreur' : (st === 'SENT-OK' ? 'Envoy\u00e9e' : 'En attente');
                             html += '<tr>' +
                                 '<td>' + escapeHtml(inv.invoice_num) + '</td>' +
                                 '<td>' + escapeHtml(inv.company_name) + '</td>' +
@@ -558,6 +607,7 @@
                         }
                     });
                     tbody.innerHTML = html;
+                    renderPager(totalPages);
                 } catch (err) {
                     console.error('Erreur chargement factures:', err);
                     tbody.innerHTML = '<tr class="empty-row"><td colspan="' + colSpan + '">Erreur de chargement</td></tr>';
@@ -565,8 +615,29 @@
                 }
             }
 
+            function renderPager(totalPages) {
+                const pagerEl = document.getElementById('pager');
+                if (totalPages <= 1) { pagerEl.innerHTML = ''; return; }
+
+                let html = '<button ' + (currentPage <= 1 ? 'disabled' : '') +
+                    ' onclick="goToPage(' + (currentPage - 1) + ')">&laquo; Pr\u00e9c.</button>';
+                for (let p = 1; p <= totalPages; p++) {
+                    html += '<button class="' + (p === currentPage ? 'active' : '') +
+                        '" onclick="goToPage(' + p + ')">' + p + '</button>';
+                }
+                html += '<button ' + (currentPage >= totalPages ? 'disabled' : '') +
+                    ' onclick="goToPage(' + (currentPage + 1) + ')">Suiv. &raquo;</button>';
+                pagerEl.innerHTML = html;
+            }
+
+            function goToPage(page) {
+                currentPage = page;
+                loadInvoices();
+            }
+
             function switchTab(tab) {
                 currentTab = tab;
+                currentPage = 1;
                 document.querySelectorAll('.tab').forEach(function(t) {
                     t.classList.toggle('active', t.dataset.tab === tab);
                 });
