@@ -1,0 +1,102 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1739 >>
+stream
+BT
+/F1 10 Tf
+1 0 0 1 50 780 Tm
+(FACTURE) Tj
+1 0 0 1 50 764 Tm
+() Tj
+1 0 0 1 50 748 Tm
+(InfoTech Services SARL) Tj
+1 0 0 1 50 732 Tm
+(8 rue du Progres) Tj
+1 0 0 1 50 716 Tm
+(31000 Toulouse) Tj
+1 0 0 1 50 700 Tm
+(SIRET : 55443322100033) Tj
+1 0 0 1 50 684 Tm
+(TVA : FR55443322101) Tj
+1 0 0 1 50 668 Tm
+() Tj
+1 0 0 1 50 652 Tm
+(-------------------------------------------) Tj
+1 0 0 1 50 636 Tm
+() Tj
+1 0 0 1 50 620 Tm
+(Facture N. : IT-2026-0042) Tj
+1 0 0 1 50 604 Tm
+(Date : 28/01/2026) Tj
+1 0 0 1 50 588 Tm
+(Echeance : 28/02/2026) Tj
+1 0 0 1 50 572 Tm
+() Tj
+1 0 0 1 50 556 Tm
+(Client : Mon Entreprise DUPONT LA JOIE) Tj
+1 0 0 1 50 540 Tm
+(         12 rue de la Paix, 75001 Paris) Tj
+1 0 0 1 50 524 Tm
+() Tj
+1 0 0 1 50 508 Tm
+(-------------------------------------------) Tj
+1 0 0 1 50 492 Tm
+() Tj
+1 0 0 1 50 476 Tm
+(  Designation                    Qte    PU HT    Total HT) Tj
+1 0 0 1 50 460 Tm
+(  Maintenance info. trim.          1   900,00      900,00) Tj
+1 0 0 1 50 444 Tm
+(  Remplacement SSD NAS             2   120,00      240,00) Tj
+1 0 0 1 50 428 Tm
+(  Licence antivirus 10 postes      1    60,00       60,00) Tj
+1 0 0 1 50 412 Tm
+() Tj
+1 0 0 1 50 396 Tm
+(-------------------------------------------) Tj
+1 0 0 1 50 380 Tm
+() Tj
+1 0 0 1 50 364 Tm
+(  Total HT :                                   1 200,00 EUR) Tj
+1 0 0 1 50 348 Tm
+(  TVA 20% :                                      240,00 EUR) Tj
+1 0 0 1 50 332 Tm
+(  Total TTC :                                  1 440,00 EUR) Tj
+1 0 0 1 50 316 Tm
+() Tj
+1 0 0 1 50 300 Tm
+(-------------------------------------------) Tj
+1 0 0 1 50 284 Tm
+(Reglement par virement sous 30 jours.) Tj
+1 0 0 1 50 268 Tm
+(IBAN : FR76 1234 5678 9012 3456 7890 123) Tj
+1 0 0 1 50 252 Tm
+(BIC : CMCIFRPP) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000002032 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2100
+%%EOF

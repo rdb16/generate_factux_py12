@@ -1,0 +1,100 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1661 >>
+stream
+BT
+/F1 10 Tf
+1 0 0 1 50 780 Tm
+(FACTURE) Tj
+1 0 0 1 50 764 Tm
+() Tj
+1 0 0 1 50 748 Tm
+(Papeterie Centrale SAS) Tj
+1 0 0 1 50 732 Tm
+(45 avenue des Champs) Tj
+1 0 0 1 50 716 Tm
+(69003 Lyon) Tj
+1 0 0 1 50 700 Tm
+(SIRET : 98765432100011) Tj
+1 0 0 1 50 684 Tm
+(TVA : FR98765432101) Tj
+1 0 0 1 50 668 Tm
+() Tj
+1 0 0 1 50 652 Tm
+(-------------------------------------------) Tj
+1 0 0 1 50 636 Tm
+() Tj
+1 0 0 1 50 620 Tm
+(Facture N. : FRNS-2026-001) Tj
+1 0 0 1 50 604 Tm
+(Date : 15/01/2026) Tj
+1 0 0 1 50 588 Tm
+(Echeance : 15/02/2026) Tj
+1 0 0 1 50 572 Tm
+() Tj
+1 0 0 1 50 556 Tm
+(Client : Mon Entreprise DUPONT LA JOIE) Tj
+1 0 0 1 50 540 Tm
+(         12 rue de la Paix, 75001 Paris) Tj
+1 0 0 1 50 524 Tm
+() Tj
+1 0 0 1 50 508 Tm
+(-------------------------------------------) Tj
+1 0 0 1 50 492 Tm
+() Tj
+1 0 0 1 50 476 Tm
+(  Designation                    Qte    PU HT    Total HT) Tj
+1 0 0 1 50 460 Tm
+(  Ramettes papier A4 80g          20     4,50       90,00) Tj
+1 0 0 1 50 444 Tm
+(  Cartouches encre HP \(x5\)         5    39,80      199,00) Tj
+1 0 0 1 50 428 Tm
+() Tj
+1 0 0 1 50 412 Tm
+(-------------------------------------------) Tj
+1 0 0 1 50 396 Tm
+() Tj
+1 0 0 1 50 380 Tm
+(  Total HT :                                     289,00 EUR) Tj
+1 0 0 1 50 364 Tm
+(  TVA 20% :                                       57,80 EUR) Tj
+1 0 0 1 50 348 Tm
+(  Total TTC :                                    346,80 EUR) Tj
+1 0 0 1 50 332 Tm
+() Tj
+1 0 0 1 50 316 Tm
+(-------------------------------------------) Tj
+1 0 0 1 50 300 Tm
+(Reglement par virement sous 30 jours.) Tj
+1 0 0 1 50 284 Tm
+(IBAN : FR76 3000 4012 3400 0100 0736 242) Tj
+1 0 0 1 50 268 Tm
+(BIC : BNPAFRPP) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001954 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2022
+%%EOF
