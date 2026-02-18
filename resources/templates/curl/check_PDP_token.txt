@@ -1,0 +1,3 @@
+curl https://api.superpdp.tech/v1.beta/companies/me \
+  -H "Authorization: Bearer {ACCESS_TOKEN}"
+# Placeholder : ACCESS_TOKEN est le token obtenu via get_PDP_token
