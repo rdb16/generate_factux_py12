@@ -10,14 +10,14 @@ from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
 from pathlib import Path
 
-from invoice_calc import calculate_line_totals, calculate_invoice_totals
+from utils.invoice_calc import calculate_line_totals, calculate_invoice_totals
 
 # Configurer la police par défaut AVANT tout autre import ReportLab
 from reportlab import rl_config
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-_FONTS_DIR = Path(__file__).parent / 'resources' / 'fonts'
+_FONTS_DIR = Path(__file__).parent.parent / 'resources' / 'fonts'
 pdfmetrics.registerFont(TTFont('LiberationSans', str(_FONTS_DIR / 'LiberationSans-Regular.ttf')))
 pdfmetrics.registerFont(TTFont('LiberationSans-Bold', str(_FONTS_DIR / 'LiberationSans-Bold.ttf')))
 pdfmetrics.registerFont(TTFont('LiberationSans-Italic', str(_FONTS_DIR / 'LiberationSans-Italic.ttf')))
@@ -39,7 +39,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
 
 # Chemin du profil ICC sRGB pour conformité PDF/A-3
-_ICC_PROFILE_PATH = Path(__file__).parent / 'resources' / 'profiles' / 'sRGB.icc'
+_ICC_PROFILE_PATH = Path(__file__).parent.parent / 'resources' / 'profiles' / 'sRGB.icc'
 
 
 def _format_amount(value) -> str:

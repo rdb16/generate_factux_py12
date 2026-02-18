@@ -7,8 +7,8 @@ Usage: uv run python test_facturx.py
 from datetime import datetime
 from pathlib import Path
 
-from facturx_generator import generate_facturx_xml
-from pdf_generator import generate_invoice_pdf
+from utils.facturx_generator import generate_facturx_xml
+from utils.pdf_generator import generate_invoice_pdf
 from facturx import generate_from_binary
 
 

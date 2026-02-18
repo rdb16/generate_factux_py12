@@ -9,7 +9,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
 
-from invoice_calc import calculate_line_totals, calculate_invoice_totals
+from utils.invoice_calc import calculate_line_totals, calculate_invoice_totals
 
 
 # Namespaces Factur-X / ZUGFeRD (CII D22B — URIs identiques à D16B)

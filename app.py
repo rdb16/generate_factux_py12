@@ -11,10 +11,10 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from pathlib import Path
 import re
 
-from facturx_generator import generate_facturx_xml
-from pdf_generator import generate_invoice_pdf
-from invoice_calc import calculate_line_totals, calculate_invoice_totals
-from db import get_db_connection, db_cursor, db_connection
+from utils.facturx_generator import generate_facturx_xml
+from utils.pdf_generator import generate_invoice_pdf
+from utils.invoice_calc import calculate_line_totals, calculate_invoice_totals
+from utils.db import get_db_connection, db_cursor, db_connection
 from facturx import generate_from_binary
 
 

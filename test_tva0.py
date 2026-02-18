@@ -5,8 +5,8 @@ Vérifie le XML (CategoryCode, BT-120, BT-121) et le PDF.
 Usage: uv run python test_tva0.py
 """
 
-from facturx_generator import generate_facturx_xml
-from pdf_generator import generate_invoice_pdf
+from utils.facturx_generator import generate_facturx_xml
+from utils.pdf_generator import generate_invoice_pdf
 from pathlib import Path
 
 

@@ -32,7 +32,11 @@ Application Flask générant des factures électroniques au format Factur-X (nor
 ### Modules principaux
 
 - **app.py** : Routes Flask, validation config au démarrage, gestion session, validation formulaires
-- **facturx_generator.py** : Génération XML CrossIndustryInvoice (CII) avec namespaces `rsm`, `ram`, `udt`
+- **utils/** : Package regroupant les modules utilitaires
+  - **utils/facturx_generator.py** : Génération XML CrossIndustryInvoice (CII) avec namespaces `rsm`, `ram`, `udt`
+  - **utils/pdf_generator.py** : Génération PDF de facture avec ReportLab
+  - **utils/invoice_calc.py** : Calculs partagés (totaux lignes, totaux facture, TVA)
+  - **utils/db.py** : Connexion et context managers PostgreSQL
 
 ### Configuration (`resources/config/ma-conf.txt`)
 
