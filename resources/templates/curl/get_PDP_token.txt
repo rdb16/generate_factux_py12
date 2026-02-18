@@ -1,0 +1,4 @@
+curl -X POST https://api.superpdp.tech/oauth2/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id={PDP_SENDER_ID}&client_secret={PDP_SENDER_SECRET}"
+# Placeholders : PDP_SENDER_ID et PDP_SENDER_SECRET sont lus depuis .env ou .env.local
