@@ -216,4 +216,4 @@ Projet privé SNTPK.
 
 ---
 
-**Version :** 1.3.0 | **Python :** 3.12+ | **Dernière mise à jour :** 2026-02-17
+**Version :** 1.3.1 | **Python :** 3.12+ | **Dernière mise à jour :** 2026-02-18
