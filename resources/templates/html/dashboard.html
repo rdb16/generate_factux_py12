@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "html/base.html" %}
 
 {% block title %}Dashboard Facturation{% endblock %}
 {% block body_max_width %}1300px{% endblock %}
@@ -389,6 +389,17 @@
                         Tester la connexion
                     </button>
                 </div>
+
+                {% if super_pdp_as_pa %}
+                <!-- Plateforme agréée -->
+                <div class="db-status-card" style="border-left: 3px solid #38a169;">
+                    <div class="db-status-left">
+                        <div class="db-info">
+                            <strong>Plateforme agr&eacute;&eacute;e retenue :</strong> Super PDP
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
                 <!-- KPI cards -->
                 <div class="kpi-grid">

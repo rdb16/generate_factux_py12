@@ -271,6 +271,7 @@ def validate_startup_config() -> None:
         print(f"  - SIRET: {CONFIG.get('siret')}")
         print(f"  - Logo: {LOGO_PATH}")
         print(f"  - PostgreSQL: {'Activé' if CONFIG.get('is_db_pg') else 'Désactivé'}")
+        print(f"  - Super PDP (PA): {'Activé' if CONFIG.get('super_pdp_as_pa') else 'Désactivé'}")
         if is_auto_numbering():
             try:
                 with db_cursor() as (conn, _cursor):
@@ -478,11 +479,12 @@ def dashboard():
     db_name = os.environ.get('DB_NAME', 'k_factur_x')
 
     return render_template(
-        'dashboard.html',
+        'html/dashboard.html',
         logo_path=get_logo_url(),
         emitter=EMITTER,
         db_host=db_host,
         db_name=db_name,
+        super_pdp_as_pa=CONFIG.get('super_pdp_as_pa', False),
     )
 
 
@@ -512,7 +514,7 @@ def show_step1():
             print(f"[WARNING] Impossible de compter les clients: {e}")
 
     return render_template(
-        'invoice_step1.html',
+        'html/invoice_step1.html',
         logo_path=get_logo_url(),
         emitter=EMITTER,
         next_invoice_number=next_invoice_number,
@@ -818,7 +820,7 @@ def show_step2():
     }
 
     return render_template(
-        'invoice_step2.html',
+        'html/invoice_step2.html',
         logo_path=get_logo_url(),
         emitter=EMITTER,
         invoice=invoice,
@@ -1047,7 +1049,7 @@ def show_step3():
         return redirect(url_for('index'))
 
     return render_template(
-        'invoice_step3.html',
+        'html/invoice_step3.html',
         logo_path=get_logo_url(),
         emitter=EMITTER,
         summary=summary,
@@ -1069,10 +1071,8 @@ def download_pdf():
 
 @app.route('/invoice/new')
 def new_invoice():
-    """Vide la session et redirige vers le dashboard ou step1."""
+    """Vide la session et redirige vers step1."""
     session.clear()
-    if CONFIG.get('is_db_pg') is True:
-        return redirect(url_for('dashboard'))
     return redirect(url_for('show_step1'))
 
 

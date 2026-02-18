@@ -20,3 +20,6 @@ cie_IBAN = "FR12345678901"
 # pour xml Factur-X (notes obligatoires BR-FR-05)
 pmt_text = "En cas de retard de paiement, une indemnité forfaitaire pour frais de recouvrement de 40€ sera exigée (Art. L441-10 et D441-5 du Code de commerce)."
 pmd_text = "En cas de retard de paiement, des pénalités de retard seront appliquées au taux de 3 fois le taux d'intérêt légal en vigueur (Art. L441-10 du Code de commerce)."
+
+# Plateforme de dématérialisation partenaire choisie (SUPER PDP)
+super_pdp_as_pa = True
