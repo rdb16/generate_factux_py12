@@ -554,30 +554,22 @@
 
 {% block scripts %}
         <script>
+            {% if is_db_pg %}
+            let clientFromDb = false;
+            {% endif %}
+
             document.getElementById("invoiceForm").onsubmit = async (e) => {
                 e.preventDefault();
                 clearErrors();
 
                 {% if is_db_pg %}
-                // Popup de confirmation uniquement pour un nouveau client
+                // Popup de confirmation uniquement pour un nouveau client (pas selectionne depuis la base)
                 const saveFlag = document.getElementById("saveNewClient");
-                if (saveFlag && saveFlag.value === "1") {
-                    // Vérifier si le SIRET existe déjà en base
-                    const siretValue = document.getElementById("recipient_siret").value.trim();
-                    if (siretValue.length >= 2) {
-                        try {
-                            const checkResp = await fetch("/api/clients/search?q=" + encodeURIComponent(siretValue));
-                            const checkData = await checkResp.json();
-                            const alreadyExists = (checkData.results || []).some(c => c.recipient_siret === siretValue);
-                            if (alreadyExists) {
-                                saveFlag.value = "0";
-                            }
-                        } catch (_) { /* en cas d'erreur réseau, on laisse le popup s'afficher */ }
-                    }
-                    if (saveFlag.value === "1") {
-                        if (!confirm("Voulez-vous enregistrer ce nouveau client dans la base de donnees ?")) {
-                            saveFlag.value = "0";
-                        }
+                if (clientFromDb) {
+                    saveFlag.value = "0";
+                } else if (saveFlag && saveFlag.value === "1") {
+                    if (!confirm("Voulez-vous enregistrer ce nouveau client dans la base de donnees ?")) {
+                        saveFlag.value = "0";
                     }
                 }
                 {% endif %}
@@ -647,6 +639,7 @@
                     clientFields.style.display = "none";
                     changeBar.style.display = "none";
                     searchPanel.style.display = "block";
+                    clientFromDb = false;
                     saveNewClientInput.value = "0";
                 });
 
@@ -663,6 +656,7 @@
                         }
                     }
                     // Client existant selectionne : pas de sauvegarde
+                    clientFromDb = true;
                     saveNewClientInput.value = "0";
                     dropdown.style.display = "none";
                     searchInput.value = "";
@@ -682,6 +676,7 @@
                             }
                         }
                     }
+                    clientFromDb = false;
                     saveNewClientInput.value = "1";
                     showClientForm();
                 });
