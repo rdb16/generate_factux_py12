@@ -718,7 +718,7 @@ def dashboard_invoices():
                         """SELECT invoice_num, company_name, invoice_date, total_ttc
                            FROM incoming_invoices
                            WHERE invoice_date >= %s AND invoice_date <= %s
-                           ORDER BY invoice_date DESC, received_at DESC
+                           ORDER BY received_at DESC
                            LIMIT %s OFFSET %s""",
                         (date_from, date_to, per_page, offset),
                     )
@@ -726,7 +726,7 @@ def dashboard_invoices():
                     cursor.execute(
                         """SELECT invoice_num, company_name, invoice_date, total_ttc
                            FROM incoming_invoices
-                           ORDER BY invoice_date DESC, received_at DESC
+                           ORDER BY received_at DESC
                            LIMIT %s OFFSET %s""",
                         (per_page, offset),
                     )
@@ -745,7 +745,7 @@ def dashboard_invoices():
                         """SELECT invoice_num, company_name, invoice_date, total_ttc, status
                            FROM sent_invoices
                            WHERE invoice_date >= %s AND invoice_date <= %s
-                           ORDER BY invoice_date DESC, created_at DESC
+                           ORDER BY created_at DESC
                            LIMIT %s OFFSET %s""",
                         (date_from, date_to, per_page, offset),
                     )
@@ -753,7 +753,7 @@ def dashboard_invoices():
                     cursor.execute(
                         """SELECT invoice_num, company_name, invoice_date, total_ttc, status
                            FROM sent_invoices
-                           ORDER BY invoice_date DESC, created_at DESC
+                           ORDER BY created_at DESC
                            LIMIT %s OFFSET %s""",
                         (per_page, offset),
                     )
