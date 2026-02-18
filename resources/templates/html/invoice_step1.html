@@ -210,7 +210,7 @@
 {% endblock %}
 
 {% block content %}
-            <form id="invoiceForm">
+            <form id="invoiceForm" autocomplete="off">
                 <div class="section">
                     <div class="section-title">Informations de la facture</div>
 
@@ -421,6 +421,7 @@
                             id="recipient_name"
                             placeholder="Entreprise ABC SARL"
                             required
+                            autocomplete="new-password"
                         />
                         <div
                             class="field-error"
@@ -486,6 +487,7 @@
                             name="recipient_address"
                             id="recipient_address"
                             placeholder="10 rue de la Republique"
+                            autocomplete="new-password"
                         />
                     </div>
 
@@ -502,6 +504,7 @@
                                 id="recipient_postal_code"
                                 placeholder="75001"
                                 maxlength="10"
+                                autocomplete="new-password"
                             />
                         </div>
                         <div class="field-group">
@@ -515,6 +518,7 @@
                                 name="recipient_city"
                                 id="recipient_city"
                                 placeholder="Paris"
+                                autocomplete="new-password"
                             />
                         </div>
                         <div class="field-group">
