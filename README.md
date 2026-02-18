@@ -175,9 +175,14 @@ Un **verrouillage transactionnel** garantit l'unicité en accès concurrent : lo
 ```
 Generate-FacturX-PY/
 ├── app.py                        # Application Flask (routes, validation, session)
-├── facturx_generator.py          # Générateur XML Factur-X (profil EN16931)
-├── pdf_generator.py              # Générateur PDF ReportLab + OutputIntent ICC
+├── utils/                        # Package modules utilitaires
+│   ├── __init__.py               # Ré-exports des fonctions publiques
+│   ├── facturx_generator.py      # Générateur XML Factur-X (profil EN16931)
+│   ├── pdf_generator.py          # Générateur PDF ReportLab + OutputIntent ICC
+│   ├── invoice_calc.py           # Calculs partagés (totaux, TVA)
+│   └── db.py                     # Connexion et context managers PostgreSQL
 ├── test_facturx.py               # Script de test de génération
+├── test_tva0.py                  # Test TVA 0% et catégories d'exonération
 ├── pyproject.toml                # Configuration uv et dépendances
 ├── resources/
 │   ├── config/ma-conf.txt        # Configuration émetteur
