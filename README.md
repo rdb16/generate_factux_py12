@@ -21,7 +21,7 @@ git clone <url-du-repo> && cd Generate-FacturX-PY
 uv sync                          # Installer les dépendances
 uv run python app.py             # Lancer l'application (http://localhost:5000)
 # remplir d'abord le fichier de conf: voir ci-après
-uv run python test_facturx.py    # Tester la génération Factur-X
+uv run python tests/test_facturx.py    # Tester la génération Factur-X
 uv add <package>                 # Ajouter une dépendance
 ```
 
@@ -181,8 +181,10 @@ Generate-FacturX-PY/
 │   ├── pdf_generator.py          # Générateur PDF ReportLab + OutputIntent ICC
 │   ├── invoice_calc.py           # Calculs partagés (totaux, TVA)
 │   └── db.py                     # Connexion et context managers PostgreSQL
-├── test_facturx.py               # Script de test de génération
-├── test_tva0.py                  # Test TVA 0% et catégories d'exonération
+├── tests/                        # Tests
+│   ├── test_facturx.py           # Script de test de génération
+│   ├── test_tva0.py              # Test TVA 0% et catégories d'exonération
+│   └── test_step1_client_save.py # Test sauvegarde client step1
 ├── pyproject.toml                # Configuration uv et dépendances
 ├── resources/
 │   ├── config/ma-conf.txt        # Configuration émetteur
