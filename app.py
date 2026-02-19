@@ -568,6 +568,7 @@ def submit_step1():
         return jsonify({'success': False, 'errors': errors}), 400
 
     # Insertion du nouveau client en base si demandé
+    client_exists = False
     if CONFIG.get('is_db_pg') is True and request.form.get('save_new_client') == '1':
         try:
             with db_cursor(commit=True) as (_conn, cursor):
@@ -589,19 +590,20 @@ def submit_step1():
                 )
             print(f"[OK] Client {data['recipient_name']} (SIRET {data['recipient_siret']}) enregistré en base")
         except Exception as e:
-            # Violation de la contrainte UNIQUE sur recipient_siret
             err_msg = str(e).lower()
             if 'unique' in err_msg or 'duplicate' in err_msg or 'recipient_siret' in err_msg:
-                return jsonify({'success': False, 'errors': [
-                    {'field': 'recipient_siret',
-                     'message': f"Un client avec le SIRET {data['recipient_siret']} existe déjà dans la base. Utilisez la recherche pour le sélectionner."}
-                ]}), 400
-            print(f"[WARNING] Échec de l'enregistrement du client: {e}")
+                print(f"[INFO] Client SIRET {data['recipient_siret']} déjà en base, insertion ignorée")
+                client_exists = True
+            else:
+                print(f"[WARNING] Échec de l'enregistrement du client: {e}")
 
     # Stocker en session
     session['invoice_data'] = data
 
-    return jsonify({'success': True})
+    response = {'success': True}
+    if client_exists:
+        response['client_exists'] = True
+    return jsonify(response)
 
 
 @app.route('/api/clients/search')

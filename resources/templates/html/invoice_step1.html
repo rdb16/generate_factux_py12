@@ -577,6 +577,10 @@
                         return;
                     }
 
+                    if (data.client_exists) {
+                        alert("Ce client existe deja dans la base de donnees.");
+                    }
+
                     // Redirection vers l'etape 2
                     window.location.href = "/invoice/step2";
                 } catch (error) {
