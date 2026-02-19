@@ -42,8 +42,8 @@ def test_pdp_token():
         print(f"ERREUR check_pdp_token: {e}")
         return
 
-    company_name = company_info.get("name", company_info.get("companyName", "N/A"))
-    user_info = company_info.get("user", company_info.get("email", "N/A"))
+    company_name = company_info.get("formal_name", company_info.get("trade_name", "N/A"))
+    env = company_info.get("env", "N/A")
 
     print(f"OK - Token valide")
 
@@ -52,7 +52,7 @@ def test_pdp_token():
     print("RESULTATS DU TEST")
     print("=" * 60)
     print(f"Entreprise : {company_name}")
-    print(f"Utilisateur: {user_info}")
+    print(f"Env        : {env}")
     print(f"\nReponse complete:")
     for key, value in company_info.items():
         print(f"  {key}: {value}")
