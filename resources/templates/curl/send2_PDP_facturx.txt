@@ -1,0 +1,5 @@
+curl -X POST https://api.superpdp.tech/v1.beta/invoices \
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \
+  -H "Content-Type: application/pdf" \
+  --data-binary @{path_facturx.pdf}
+# Placeholders : ACCESS_TOKEN obtenu via get_PDP_token, path_facturx.pdf chemin vers le PDF Factur-X
