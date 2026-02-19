@@ -399,7 +399,7 @@
                             <strong>Plateforme agr&eacute;&eacute;e retenue :</strong> Super PDP
                             {% if pdp_token_validity %}
                             &mdash; Jeton OK
-                            <span class="db-timestamp">Dur&eacute;e de validit&eacute; : {{ pdp_token_validity }}</span>
+                            <span class="db-timestamp">Jeton valide jusqu'&agrave; {{ pdp_token_validity }}</span>
                             {% elif pdp_token_error %}
                             &mdash; <span style="color: #e53e3e;">Erreur : {{ pdp_token_error }}</span>
                             {% endif %}
