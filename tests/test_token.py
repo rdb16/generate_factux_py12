@@ -4,6 +4,11 @@ Script de test pour vérifier l'authentification OAuth2 SuperPDP.
 Usage: uv run python tests/test_token.py
 """
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from utils.super_pdp import get_pdp_token, check_pdp_token
 
 
