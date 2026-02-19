@@ -22,17 +22,22 @@ def test_pdp_token():
     # 1. Récupérer le token OAuth2
     print("\n[1/2] Récupération du token OAuth2...")
     try:
-        token = get_pdp_token()
+        token_response = get_pdp_token()
     except (EnvironmentError, RuntimeError) as e:
         print(f"ERREUR get_pdp_token: {e}")
         return
 
-    print(f"OK - Token obtenu: {token[:20]}...{token[-10:]}")
+    access_token = token_response["access_token"]
+    expires_in = token_response.get("expires_in", "N/A")
+    token_type = token_response.get("token_type", "N/A")
+
+    print(f"OK - Token obtenu: {access_token[:20]}...{access_token[-10:]}")
+    print(f"     Type: {token_type} | Expire dans: {expires_in}s")
 
     # 2. Vérifier le token via /companies/me
     print("\n[2/2] Vérification du token via /companies/me...")
     try:
-        company_info = check_pdp_token(token)
+        company_info = check_pdp_token(access_token)
     except (ValueError, RuntimeError) as e:
         print(f"ERREUR check_pdp_token: {e}")
         return

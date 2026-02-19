@@ -22,15 +22,15 @@ def _load_env():
         load_dotenv(env_file, override=True)
 
 
-def get_pdp_token() -> str:
+def get_pdp_token() -> dict:
     """
     Récupère un token OAuth2 auprès de l'API SuperPDP.
 
     Lit PDP_SENDER_ID et PDP_SENDER_SECRET depuis .env / .env.local,
-    construit et exécute la commande curl, puis retourne le token.
+    construit et exécute la commande curl, puis retourne la réponse JSON complète.
 
     Returns:
-        Le token OAuth2 (access_token).
+        Dictionnaire JSON : {access_token, expires_in, scope, token_type}.
 
     Raises:
         EnvironmentError: Si PDP_SENDER_ID ou PDP_SENDER_SECRET manquent.
@@ -88,13 +88,12 @@ def get_pdp_token() -> str:
             f"- {response.get('error_description', '')}"
         )
 
-    oauth_token = response.get("access_token")
-    if not oauth_token:
+    if "access_token" not in response:
         raise RuntimeError(
             f"Pas de access_token dans la réponse: {result.stdout[:200]}"
         )
 
-    return oauth_token
+    return response
 
 
 def check_pdp_token(token: str) -> dict:
