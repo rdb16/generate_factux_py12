@@ -5,7 +5,7 @@ Application Flask pour générer des factures au format Factur-X.
 import math
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from pathlib import Path
@@ -489,10 +489,8 @@ def dashboard():
             token_response = get_pdp_token()
             session['OAUTH_TOKEN'] = token_response['access_token']
             expires_in = token_response.get('expires_in', 0)
-            now = datetime.now()
-            hours, remainder = divmod(int(expires_in), 3600)
-            minutes, seconds = divmod(remainder, 60)
-            pdp_token_validity = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            expiry_time = datetime.now() + timedelta(seconds=int(expires_in))
+            pdp_token_validity = expiry_time.strftime("%H:%M:%S")
         except (EnvironmentError, RuntimeError) as e:
             pdp_token_error = str(e)
 
