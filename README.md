@@ -34,6 +34,7 @@ dependencies = [
     "factur-x>=3.15",         # Génération PDF Factur-X (inclut pypdf)
     "reportlab>=4.4.9",       # Génération PDF
     "psycopg2-binary>=2.9.11",# Driver PostgreSQL (optionnel)
+    "python-dotenv>=1.2.1",   # Chargement .env / .env.local
 ]
 ```
 
@@ -65,6 +66,9 @@ is_db_pg=False
 
 # Numérotation auto des factures (requiert is_db_pg=True)
 is_num_facturx_auto=False
+
+# Plateforme de dématérialisation partenaire (optionnel)
+super_pdp_as_pa=False
 
 # Informations complémentaires émetteur
 cie_legal_form=S.A.R.L
@@ -162,6 +166,10 @@ DB_PORT=5432
 DB_NAME=factur_x
 DB_USER=postgres
 DB_PASSWORD=votre_mot_de_passe
+
+# SuperPDP (si super_pdp_as_pa=True)
+PDP_SENDER_ID=votre_client_id
+PDP_SENDER_SECRET=votre_client_secret
 ```
 
 ### Numérotation automatique
@@ -169,6 +177,20 @@ DB_PASSWORD=votre_mot_de_passe
 Lorsque `is_num_facturx_auto=True` et `is_db_pg=True`, le numéro de facture est généré au format `FAC-YYYY-MM-NNNN` (ex: `FAC-2026-02-0001`).
 
 Un **verrouillage transactionnel** garantit l'unicité en accès concurrent : lock pendant la génération (XML + PDF + insertion), relâché au commit/rollback.
+
+## Plateforme de dématérialisation (SuperPDP)
+
+Si `super_pdp_as_pa=True` dans la configuration, l'application se connecte à l'API [SuperPDP](https://superpdp.tech) pour l'envoi de factures électroniques.
+
+Au chargement du dashboard, un jeton OAuth2 est demandé via `client_credentials` et stocké en `session['OAUTH_TOKEN']`. La durée de validité du jeton (~30 min) est affichée au format `hh:mm:ss`.
+
+```bash
+uv run python tests/test_token.py   # Tester l'authentification SuperPDP
+```
+
+Le module `utils/super_pdp.py` expose :
+- `get_pdp_token()` — Récupère un jeton OAuth2 (retourne le JSON complet : `access_token`, `expires_in`, `token_type`)
+- `check_pdp_token(token)` — Vérifie la validité du jeton via `GET /v1.beta/companies/me`
 
 ## Structure du projet
 
@@ -180,11 +202,13 @@ Generate-FacturX-PY/
 │   ├── facturx_generator.py      # Générateur XML Factur-X (profil EN16931)
 │   ├── pdf_generator.py          # Générateur PDF ReportLab + OutputIntent ICC
 │   ├── invoice_calc.py           # Calculs partagés (totaux, TVA)
-│   └── db.py                     # Connexion et context managers PostgreSQL
+│   ├── db.py                     # Connexion et context managers PostgreSQL
+│   └── super_pdp.py              # Client API SuperPDP (OAuth2, envoi factures)
 ├── tests/                        # Tests
 │   ├── test_facturx.py           # Script de test de génération
 │   ├── test_tva0.py              # Test TVA 0% et catégories d'exonération
-│   └── test_step1_client_save.py # Test sauvegarde client step1
+│   ├── test_step1_client_save.py # Test sauvegarde client step1
+│   └── test_token.py             # Test authentification SuperPDP
 ├── pyproject.toml                # Configuration uv et dépendances
 ├── resources/
 │   ├── config/ma-conf.txt        # Configuration émetteur
@@ -218,4 +242,4 @@ Projet privé SNTPK.
 
 ---
 
-**Version :** 1.3.1 | **Python :** 3.12+ | **Dernière mise à jour :** 2026-02-18
+**Version :** 1.3.2 | **Python :** 3.12+ | **Dernière mise à jour :** 2026-02-19
