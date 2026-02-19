@@ -15,6 +15,7 @@ from utils.facturx_generator import generate_facturx_xml
 from utils.pdf_generator import generate_invoice_pdf
 from utils.invoice_calc import calculate_line_totals, calculate_invoice_totals
 from utils.db import get_db_connection, db_cursor, db_connection
+from utils.super_pdp import get_pdp_token
 from facturx import generate_from_binary
 
 
@@ -478,6 +479,23 @@ def dashboard():
     db_host = os.environ.get('DB_URL', 'localhost')
     db_name = os.environ.get('DB_NAME', 'k_factur_x')
 
+    # Token OAuth2 SuperPDP
+    session['OAUTH_TOKEN'] = None
+    pdp_token_error = None
+    pdp_token_validity = None
+
+    if CONFIG.get('super_pdp_as_pa') is True:
+        try:
+            token_response = get_pdp_token()
+            session['OAUTH_TOKEN'] = token_response['access_token']
+            expires_in = token_response.get('expires_in', 0)
+            now = datetime.now()
+            hours, remainder = divmod(int(expires_in), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            pdp_token_validity = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        except (EnvironmentError, RuntimeError) as e:
+            pdp_token_error = str(e)
+
     return render_template(
         'html/dashboard.html',
         logo_path=get_logo_url(),
@@ -485,6 +503,8 @@ def dashboard():
         db_host=db_host,
         db_name=db_name,
         super_pdp_as_pa=CONFIG.get('super_pdp_as_pa', False),
+        pdp_token_validity=pdp_token_validity,
+        pdp_token_error=pdp_token_error,
     )
 
 
