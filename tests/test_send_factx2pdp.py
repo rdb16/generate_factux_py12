@@ -15,5 +15,12 @@ if len(sys.argv) < 2:
 pdf_path = sys.argv[1]
 print(f"Envoi de {pdf_path} vers SuperPDP...")
 
-response = send_facturx_to_pdp(pdf_path)
-print(json.dumps(response, indent=2, ensure_ascii=False))
+try:
+    response = send_facturx_to_pdp(pdf_path)
+    print(json.dumps(response, indent=2, ensure_ascii=False))
+except FileNotFoundError as e:
+    print(f"Fichier introuvable : {e}")
+    sys.exit(1)
+except RuntimeError as e:
+    print(f"Erreur : {e}")
+    sys.exit(1)

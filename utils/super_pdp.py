@@ -189,7 +189,53 @@ def send_facturx_to_pdp(pdf_path: str) -> dict:
             f"- {response.get('error_description', response.get('message', ''))}"
         )
 
+    http_status = response.get("http_status_code")
+    if http_status and http_status >= 400:
+        raise RuntimeError(
+            f"Erreur API SuperPDP (HTTP {http_status}): "
+            f"{response.get('message', '')}"
+        )
+
     return response
+
+
+def update_invoice_sent_ok(invoice_num: str, sent_at: str) -> None:
+    """
+    Met à jour une facture en statut SENT-OK après téléversement réussi.
+
+    Args:
+        invoice_num: Numéro de la facture (clé primaire sent_invoices).
+        sent_at: Timestamp ISO 8601 du téléversement (created_at de la réponse API).
+    """
+    from utils.db import db_cursor
+
+    _load_env()
+    with db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE sent_invoices SET status = 'SENT-OK', sent_at = %s "
+            "WHERE invoice_num = %s",
+            (sent_at, invoice_num),
+        )
+
+
+def update_invoice_sent_error(invoice_num: str, exception: str, sent_at: str) -> None:
+    """
+    Met à jour une facture en statut SENT-ERROR après échec de téléversement.
+
+    Args:
+        invoice_num: Numéro de la facture (clé primaire sent_invoices).
+        exception: Motif de l'erreur (obligatoire d'après le trigger PG).
+        sent_at: Timestamp ISO 8601 de la tentative d'envoi.
+    """
+    from utils.db import db_cursor
+
+    _load_env()
+    with db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE sent_invoices SET status = 'SENT-ERROR', exception = %s, "
+            "sent_at = %s WHERE invoice_num = %s",
+            (exception, sent_at, invoice_num),
+        )
 
 
 def check_pdp_token(token: str) -> dict:
