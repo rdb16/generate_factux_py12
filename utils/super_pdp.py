@@ -5,9 +5,13 @@ Client pour l'API SuperPDP : authentification OAuth2 et envoi de factures.
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_TOKEN_CACHE_PATH = _PROJECT_ROOT / ".pdp_token_cache.json"
 
 
 def _load_env():
@@ -94,6 +98,36 @@ def get_pdp_token() -> dict:
         )
 
     return response
+
+
+def get_cached_pdp_token() -> dict:
+    """
+    Retourne un token OAuth2 SuperPDP depuis le cache local ou via l'API.
+
+    Lit le fichier cache `.pdp_token_cache.json` à la racine du projet.
+    Si le token est encore valide (avec une marge de 60 s), il est retourné
+    directement sans appel réseau. Sinon, un nouveau token est demandé via
+    `get_pdp_token()` et le cache est mis à jour.
+
+    Returns:
+        Dictionnaire JSON : {access_token, expires_in, token_type, fetched_at}.
+    """
+    if _TOKEN_CACHE_PATH.exists():
+        try:
+            cached = json.loads(_TOKEN_CACHE_PATH.read_text(encoding="utf-8"))
+            fetched_at = cached.get("fetched_at", 0)
+            expires_in = cached.get("expires_in", 0)
+            if fetched_at + expires_in - 60 > time.time():
+                return cached
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    token_data = get_pdp_token()
+    token_data["fetched_at"] = time.time()
+    _TOKEN_CACHE_PATH.write_text(
+        json.dumps(token_data, indent=2), encoding="utf-8"
+    )
+    return token_data
 
 
 def check_pdp_token(token: str) -> dict:
