@@ -130,6 +130,68 @@ def get_cached_pdp_token() -> dict:
     return token_data
 
 
+def send_facturx_to_pdp(pdf_path: str) -> dict:
+    """
+    Envoie un PDF Factur-X à l'API SuperPDP.
+
+    Args:
+        pdf_path: Chemin vers le fichier PDF Factur-X à envoyer.
+
+    Returns:
+        Dictionnaire JSON de la réponse API.
+
+    Raises:
+        FileNotFoundError: Si le fichier PDF n'existe pas.
+        RuntimeError: Si la commande curl échoue ou si la réponse est invalide.
+    """
+    pdf = Path(pdf_path)
+    if not pdf.exists():
+        raise FileNotFoundError(f"Fichier PDF introuvable : {pdf_path}")
+
+    token_data = get_cached_pdp_token()
+    access_token = token_data["access_token"]
+
+    curl_cmd = [
+        "curl", "-s", "-X", "POST",
+        "https://api.superpdp.tech/v1.beta/invoices",
+        "-H", f"Authorization: Bearer {access_token}",
+        "-H", "Content-Type: application/pdf",
+        "--data-binary", f"@{pdf}",
+    ]
+
+    try:
+        result = subprocess.run(
+            curl_cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Timeout lors de l'envoi de la facture (30s)")
+    except FileNotFoundError:
+        raise RuntimeError("curl n'est pas installé ou introuvable dans le PATH")
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Erreur curl (code {result.returncode}): {result.stderr.strip()}"
+        )
+
+    try:
+        response = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise RuntimeError(
+            f"Réponse invalide de l'API SuperPDP: {result.stdout[:200]}"
+        )
+
+    if "error" in response:
+        raise RuntimeError(
+            f"Erreur API SuperPDP: {response.get('error')} "
+            f"- {response.get('error_description', response.get('message', ''))}"
+        )
+
+    return response
+
+
 def check_pdp_token(token: str) -> dict:
     """
     Vérifie la validité d'un token OAuth2 auprès de l'API SuperPDP.
