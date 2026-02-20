@@ -859,7 +859,7 @@ def save_to_storage(content, invoice_number: str, storage_type: str) -> str:
     storage_dir = CONFIG.get(config_key, defaults[storage_type])
 
     safe_number = _sanitize_invoice_number(invoice_number)
-    filename = f"facturx-{safe_number}.{storage_type}"
+    filename = f"{safe_number}.{storage_type}"
     filepath = Path(storage_dir) / filename
 
     if storage_type == 'xml':
@@ -1001,8 +1001,8 @@ def generate_invoice():
             return str(Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
 
         safe_number = _sanitize_invoice_number(invoice_data['invoice_number'])
-        pdf_filename = f"facturx-{safe_number}.pdf"
-        xml_filename = f"facturx-{safe_number}.xml"
+        pdf_filename = f"{safe_number}.pdf"
+        xml_filename = f"{safe_number}.xml"
 
         summary_lines = []
         for line in lines:
