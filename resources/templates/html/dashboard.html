@@ -474,9 +474,15 @@
                     <a href="/invoice/new" class="btn-action primary">
                         Cr&eacute;er une facture
                     </a>
+                    {% if super_pdp_as_pa %}
+                    <a href="/send-to-pa" class="btn-action">
+                        Envoyer vers PA
+                    </a>
+                    {% else %}
                     <button class="btn-action" disabled title="Fonctionnalit&eacute; &agrave; venir">
                         Envoyer vers PA
                     </button>
+                    {% endif %}
                     <button class="btn-action" disabled title="Fonctionnalit&eacute; &agrave; venir">
                         R&eacute;cup&eacute;rer des factures
                     </button>

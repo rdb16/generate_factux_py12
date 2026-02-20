@@ -1,0 +1,357 @@
+{% extends "html/base.html" %}
+
+{% block title %}Envoyer vers PA{% endblock %}
+{% block body_max_width %}1100px{% endblock %}
+{% block header_title %}Envoyer vers PA{% endblock %}
+{% block header_extra %} - Envoi group&eacute; de factures{% endblock %}
+{% block steps_wrapper %}{% endblock %}
+
+{% block extra_styles %}
+            .send-pa {
+                padding: 24px 30px;
+            }
+            .send-pa-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 20px;
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+            .send-pa-header h2 {
+                margin: 0;
+                font-size: 18px;
+                color: #1a202c;
+            }
+            .send-pa-count {
+                font-size: 13px;
+                color: #718096;
+                font-weight: 500;
+            }
+            .invoice-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+            .invoice-table th {
+                text-align: left;
+                padding: 10px 16px;
+                background: #edf2f7;
+                color: #4a5568;
+                font-weight: 600;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+            .invoice-table th.col-amount {
+                text-align: right;
+            }
+            .invoice-table th.col-check {
+                width: 40px;
+                text-align: center;
+            }
+            .invoice-table td {
+                padding: 12px 16px;
+                border-bottom: 1px solid #e2e8f0;
+                color: #1a202c;
+            }
+            .invoice-table td.col-amount {
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+                font-weight: 500;
+            }
+            .invoice-table td.col-check {
+                text-align: center;
+            }
+            .invoice-table tr:last-child td {
+                border-bottom: none;
+            }
+            .invoice-table tr:hover {
+                background: #f8fafc;
+            }
+            .invoice-table .empty-row td {
+                text-align: center;
+                color: #a0aec0;
+                font-style: italic;
+                padding: 24px 16px;
+            }
+            .invoice-table tr.sent-ok {
+                opacity: 0.6;
+            }
+            .invoice-table input[type="checkbox"] {
+                width: 16px;
+                height: 16px;
+                cursor: pointer;
+            }
+            .badge {
+                display: inline-block;
+                padding: 3px 10px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+            .badge-ok {
+                background: #c6f6d5;
+                color: #276749;
+            }
+            .badge-ko {
+                background: #fed7d7;
+                color: #c53030;
+            }
+            .badge-pending {
+                background: #fefcbf;
+                color: #975a16;
+            }
+            .action-bar {
+                display: flex;
+                justify-content: flex-start;
+                gap: 12px;
+                padding-top: 20px;
+            }
+            .btn-action {
+                padding: 12px 24px;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s;
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .btn-action.primary {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            .btn-action.primary:hover:not(:disabled) {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            }
+            .btn-action:disabled {
+                background: #e2e8f0;
+                color: #a0aec0;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
+            }
+            .btn-action.secondary {
+                background: #edf2f7;
+                color: #4a5568;
+            }
+            .btn-action.secondary:hover {
+                background: #e2e8f0;
+            }
+            .results-bar {
+                margin-top: 20px;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                overflow: hidden;
+                display: none;
+            }
+            .results-bar-header {
+                padding: 12px 16px;
+                background: #f8fafc;
+                border-bottom: 1px solid #e2e8f0;
+                font-size: 14px;
+                font-weight: 600;
+                color: #1a202c;
+            }
+            .results-bar-body {
+                padding: 12px 16px;
+                max-height: 300px;
+                overflow-y: auto;
+            }
+            .result-item {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 8px 0;
+                font-size: 13px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            .result-item:last-child {
+                border-bottom: none;
+            }
+            .result-item .result-num {
+                font-weight: 600;
+                color: #1a202c;
+                min-width: 160px;
+            }
+            .result-item .result-msg {
+                color: #4a5568;
+            }
+            .table-wrapper {
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+{% endblock %}
+
+{% block content %}
+            <div class="send-pa">
+                <div class="send-pa-header">
+                    <h2>Factures en attente d'envoi</h2>
+                    <span class="send-pa-count">{{ invoices|length }} facture(s) PENDING</span>
+                </div>
+
+                <div class="table-wrapper">
+                    <table class="invoice-table">
+                        <thead>
+                            <tr>
+                                <th class="col-check">
+                                    <input type="checkbox" id="selectAll" title="Tout s&eacute;lectionner">
+                                </th>
+                                <th>Num&eacute;ro</th>
+                                <th>Client</th>
+                                <th>Date</th>
+                                <th class="col-amount">Montant TTC</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invoiceTableBody">
+                            {% if invoices %}
+                                {% for inv in invoices %}
+                                <tr data-num="{{ inv.invoice_num }}">
+                                    <td class="col-check">
+                                        <input type="checkbox" class="inv-check" value="{{ inv.invoice_num }}">
+                                    </td>
+                                    <td>{{ inv.invoice_num }}</td>
+                                    <td>{{ inv.company_name }}</td>
+                                    <td>{{ inv.invoice_date }}</td>
+                                    <td class="col-amount">
+                                        {% if inv.total_ttc is not none %}
+                                            {{ "%.2f"|format(inv.total_ttc) }} EUR
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr class="empty-row">
+                                    <td colspan="5">Aucune facture en attente d'envoi</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="action-bar">
+                    <button class="btn-action primary" id="btnSend" disabled>
+                        Envoyer les factures s&eacute;lectionn&eacute;es (<span id="sendCount">0</span>)
+                    </button>
+                    <a href="/dashboard" class="btn-action secondary">
+                        Retour au dashboard
+                    </a>
+                </div>
+
+                <div class="results-bar" id="resultsBar">
+                    <div class="results-bar-header">
+                        R&eacute;sultats de l'envoi
+                    </div>
+                    <div class="results-bar-body" id="resultsBody"></div>
+                </div>
+            </div>
+{% endblock %}
+
+{% block scripts %}
+        <script>
+            const selectAll = document.getElementById('selectAll');
+            const btnSend = document.getElementById('btnSend');
+            const sendCount = document.getElementById('sendCount');
+            const resultsBar = document.getElementById('resultsBar');
+            const resultsBody = document.getElementById('resultsBody');
+
+            function getChecked() {
+                return document.querySelectorAll('.inv-check:checked');
+            }
+
+            function updateCount() {
+                const count = getChecked().length;
+                sendCount.textContent = count;
+                btnSend.disabled = count === 0;
+            }
+
+            selectAll.addEventListener('change', function() {
+                document.querySelectorAll('.inv-check').forEach(function(cb) {
+                    cb.checked = selectAll.checked;
+                });
+                updateCount();
+            });
+
+            document.querySelectorAll('.inv-check').forEach(function(cb) {
+                cb.addEventListener('change', function() {
+                    const total = document.querySelectorAll('.inv-check').length;
+                    const checked = getChecked().length;
+                    selectAll.checked = checked === total;
+                    updateCount();
+                });
+            });
+
+            function escapeHtml(str) {
+                if (str === null || str === undefined) return '';
+                var div = document.createElement('div');
+                div.appendChild(document.createTextNode(String(str)));
+                return div.innerHTML;
+            }
+
+            btnSend.addEventListener('click', async function() {
+                const checked = getChecked();
+                if (checked.length === 0) return;
+
+                const invoiceNums = Array.from(checked).map(function(cb) { return cb.value; });
+
+                btnSend.disabled = true;
+                btnSend.textContent = 'Envoi en cours...';
+                resultsBar.style.display = 'block';
+                resultsBody.innerHTML = '<div style="color:#718096;font-style:italic;padding:8px 0;">Envoi en cours...</div>';
+
+                try {
+                    const resp = await fetch('/api/send-to-pa', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ invoice_nums: invoiceNums })
+                    });
+                    const data = await resp.json();
+
+                    resultsBody.innerHTML = '';
+                    if (data.results) {
+                        data.results.forEach(function(r) {
+                            const item = document.createElement('div');
+                            item.className = 'result-item';
+
+                            const badgeClass = r.status === 'ok' ? 'badge-ok' : 'badge-ko';
+                            const badgeLabel = r.status === 'ok' ? 'OK' : 'ERREUR';
+
+                            item.innerHTML =
+                                '<span class="result-num">' + escapeHtml(r.invoice_num) + '</span>' +
+                                '<span class="badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+                                '<span class="result-msg">' + escapeHtml(r.message) + '</span>';
+
+                            resultsBody.appendChild(item);
+
+                            if (r.status === 'ok') {
+                                const row = document.querySelector('tr[data-num="' + CSS.escape(r.invoice_num) + '"]');
+                                if (row) {
+                                    row.classList.add('sent-ok');
+                                    var cb = row.querySelector('.inv-check');
+                                    if (cb) {
+                                        cb.checked = false;
+                                        cb.disabled = true;
+                                    }
+                                }
+                            }
+                        });
+                    }
+                } catch (err) {
+                    resultsBody.innerHTML = '<div style="color:#c53030;padding:8px 0;">Erreur r\u00e9seau : ' + escapeHtml(err.message) + '</div>';
+                } finally {
+                    updateCount();
+                    btnSend.innerHTML = 'Envoyer les factures s\u00e9lectionn\u00e9es (<span id="sendCount">' + getChecked().length + '</span>)';
+                }
+            });
+        </script>
+{% endblock %}

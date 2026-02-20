@@ -138,11 +138,11 @@ def send_facturx_to_pdp(pdf_path: str) -> dict:
         pdf_path: Chemin vers le fichier PDF Factur-X à envoyer.
 
     Returns:
-        Dictionnaire JSON de la réponse API.
+        Dictionnaire JSON de la réponse API (succès ou erreur).
 
     Raises:
         FileNotFoundError: Si le fichier PDF n'existe pas.
-        RuntimeError: Si la commande curl échoue ou si la réponse est invalide.
+        RuntimeError: Si curl échoue ou si la réponse n'est pas du JSON.
     """
     pdf = Path(pdf_path)
     if not pdf.exists():
@@ -181,19 +181,6 @@ def send_facturx_to_pdp(pdf_path: str) -> dict:
     except json.JSONDecodeError:
         raise RuntimeError(
             f"Réponse invalide de l'API SuperPDP: {result.stdout[:200]}"
-        )
-
-    if "error" in response:
-        raise RuntimeError(
-            f"Erreur API SuperPDP: {response.get('error')} "
-            f"- {response.get('error_description', response.get('message', ''))}"
-        )
-
-    http_status = response.get("http_status_code")
-    if http_status and http_status >= 400:
-        raise RuntimeError(
-            f"Erreur API SuperPDP (HTTP {http_status}): "
-            f"{response.get('message', '')}"
         )
 
     return response

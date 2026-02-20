@@ -15,7 +15,7 @@ from utils.facturx_generator import generate_facturx_xml
 from utils.pdf_generator import generate_invoice_pdf
 from utils.invoice_calc import calculate_line_totals, calculate_invoice_totals
 from utils.db import get_db_connection, db_cursor, db_connection
-from utils.super_pdp import get_pdp_token
+from utils.super_pdp import get_pdp_token, send_facturx_to_pdp, update_invoice_sent_ok, update_invoice_sent_error
 from facturx import generate_from_binary
 
 
@@ -1094,6 +1094,92 @@ def new_invoice():
     """Vide la session et redirige vers step1."""
     session.clear()
     return redirect(url_for('show_step1'))
+
+
+@app.route('/send-to-pa')
+def send_to_pa():
+    """Affiche la page d'envoi groupé des factures PENDING vers la PA."""
+    if CONFIG.get('is_db_pg') is not True or CONFIG.get('super_pdp_as_pa') is not True:
+        return redirect(url_for('dashboard'))
+
+    try:
+        with db_cursor() as (_conn, cursor):
+            cursor.execute(
+                """SELECT invoice_num, company_name, invoice_date, total_ttc, pdf_path
+                   FROM sent_invoices
+                   WHERE status = 'PENDING'
+                   ORDER BY created_at ASC"""
+            )
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+            invoices = []
+            for row in rows:
+                inv = dict(zip(columns, row))
+                if inv.get('invoice_date'):
+                    inv['invoice_date'] = str(inv['invoice_date'])
+                if inv.get('total_ttc') is not None:
+                    inv['total_ttc'] = float(inv['total_ttc'])
+                invoices.append(inv)
+    except Exception as e:
+        print(f"[ERROR] Chargement factures PENDING: {e}")
+        invoices = []
+
+    return render_template(
+        'html/send_to_pa.html',
+        logo_path=get_logo_url(),
+        emitter=EMITTER,
+        invoices=invoices,
+    )
+
+
+@app.route('/api/send-to-pa', methods=['POST'])
+def api_send_to_pa():
+    """Envoie les factures sélectionnées vers la PA SuperPDP."""
+    if CONFIG.get('is_db_pg') is not True or CONFIG.get('super_pdp_as_pa') is not True:
+        return jsonify({'error': 'Fonctionnalité non activée'}), 403
+
+    data = request.get_json()
+    if not data or not data.get('invoice_nums'):
+        return jsonify({'error': 'Aucune facture sélectionnée'}), 400
+
+    invoice_nums = data['invoice_nums']
+    results = []
+
+    for num in invoice_nums:
+        now = datetime.now().isoformat()
+        try:
+            with db_cursor() as (_conn, cursor):
+                cursor.execute(
+                    "SELECT pdf_path FROM sent_invoices WHERE invoice_num = %s AND status = 'PENDING'",
+                    (num,),
+                )
+                row = cursor.fetchone()
+
+            if not row:
+                results.append({'invoice_num': num, 'status': 'error', 'message': 'Facture introuvable ou déjà envoyée'})
+                continue
+
+            pdf_path = row[0]
+            response = send_facturx_to_pdp(pdf_path)
+
+            if 'error' in response or response.get('http_status_code', 200) >= 400:
+                error_msg = response.get('error', response.get('message', str(response)))
+                update_invoice_sent_error(num, str(error_msg), now)
+                results.append({'invoice_num': num, 'status': 'error', 'message': str(error_msg)})
+            else:
+                sent_at = response.get('created_at', now)
+                update_invoice_sent_ok(num, sent_at)
+                results.append({'invoice_num': num, 'status': 'ok', 'message': 'Envoyée avec succès'})
+
+        except Exception as e:
+            print(f"[ERROR] Envoi facture {num}: {e}")
+            try:
+                update_invoice_sent_error(num, str(e), now)
+            except Exception:
+                pass
+            results.append({'invoice_num': num, 'status': 'error', 'message': str(e)})
+
+    return jsonify({'results': results})
 
 
 if __name__ == '__main__':
