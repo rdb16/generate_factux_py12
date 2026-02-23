@@ -19,12 +19,13 @@ CREATE TABLE IF NOT EXISTS sent_invoices (
     xml_facture     XML                      NOT NULL,
     pdf_path        VARCHAR(500)             NOT NULL,
     invoice_date    DATE                     NOT NULL,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    validated_at    TIMESTAMP WITH TIME ZONE,
-    status          invoice_status           DEFAULT 'PENDING',
-    exception       TEXT                     DEFAULT NULL,
     total_ttc       NUMERIC(12,2)            DEFAULT NULL,
-    sent_at         TIMESTAMP WITH TIME ZONE DEFAULT NULL
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    sent_at         TIMESTAMP WITH TIME ZONE DEFAULT NULL,   
+    sent_status     invoice_status           DEFAULT 'PENDING',
+    pa_id           BIGINT                   DEFAULT NULL,
+    pa_validation   BOOLEAN                  DEFAULT NULL,
+    exception       TEXT                     DEFAULT NULL   
 );
 
 -- Index
@@ -37,28 +38,23 @@ CREATE INDEX IF NOT EXISTS idx_sent_invoices_company_siret
 CREATE INDEX IF NOT EXISTS idx_sent_invoices_invoice_date
     ON sent_invoices (invoice_date);
 
-CREATE INDEX IF NOT EXISTS idx_sent_invoices_status
-    ON sent_invoices (status);
+CREATE INDEX IF NOT EXISTS idx_sent_invoices_sent_status
+    ON sent_invoices (sent_status);
 
--- Trigger : logique status/exception
---   PENDING    → pas de contrainte sur exception
---   SENT-OK    → pas de contrainte sur exception
---   SENT-ERROR → exception obligatoire (non NULL, non vide)
+-- Trigger : exception obligatoire si sent_status = 'SENT-ERROR'
 CREATE OR REPLACE FUNCTION check_exception_on_status()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- SENT-ERROR : exception obligatoire
-    IF NEW.status = 'SENT-ERROR' AND (NEW.exception IS NULL OR TRIM(NEW.exception) = '') THEN
-        RAISE EXCEPTION 'Le champ exception est obligatoire quand status vaut SENT-ERROR';
+    IF NEW.sent_status = 'SENT-ERROR' AND (NEW.exception IS NULL OR NEW.exception = '') THEN
+        RAISE EXCEPTION 'Le champ exception est obligatoire quand sent_status = SENT-ERROR';
     END IF;
-
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trg_check_exception_on_ko ON sent_invoices;
-
-CREATE TRIGGER trg_check_exception_on_status
+DROP TRIGGER IF EXISTS trg_check_exception ON sent_invoices;
+CREATE TRIGGER trg_check_exception
     BEFORE INSERT OR UPDATE ON sent_invoices
     FOR EACH ROW
     EXECUTE FUNCTION check_exception_on_status();
+

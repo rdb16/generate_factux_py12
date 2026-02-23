@@ -632,7 +632,7 @@
                             ? parseFloat(inv.total_ttc).toFixed(2) + ' EUR'
                             : '-';
                         if (currentTab === 'sent') {
-                            const st = inv.status || '';
+                            const st = inv.sent_status || '';
                             const statusClass = st === 'SENT-ERROR' ? 'badge-ko' : (st === 'SENT-OK' ? 'badge-ok' : 'badge-pending');
                             const statusLabel = st === 'SENT-ERROR' ? 'Erreur' : (st === 'SENT-OK' ? 'Envoy\u00e9e' : 'En attente');
                             html += '<tr>' +

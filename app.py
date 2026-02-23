@@ -717,10 +717,10 @@ def dashboard_stats():
             cursor.execute("SELECT COUNT(*) FROM sent_invoices")
             stats['generated'] = cursor.fetchone()[0]
 
-            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE status = 'SENT-OK'")
+            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE sent_status = 'SENT-OK'")
             stats['transferred'] = cursor.fetchone()[0]
 
-            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE status = 'SENT-ERROR'")
+            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE sent_status = 'SENT-ERROR'")
             stats['error'] = cursor.fetchone()[0]
     except Exception as e:
         print(f"[ERROR] Stats sent_invoices: {e}")
@@ -791,7 +791,7 @@ def dashboard_invoices():
 
                 if has_dates:
                     cursor.execute(
-                        """SELECT invoice_num, company_name, invoice_date, total_ttc, status
+                        """SELECT invoice_num, company_name, invoice_date, total_ttc, sent_status
                            FROM sent_invoices
                            WHERE invoice_date >= %s AND invoice_date <= %s
                            ORDER BY created_at DESC
@@ -800,7 +800,7 @@ def dashboard_invoices():
                     )
                 else:
                     cursor.execute(
-                        """SELECT invoice_num, company_name, invoice_date, total_ttc, status
+                        """SELECT invoice_num, company_name, invoice_date, total_ttc, sent_status
                            FROM sent_invoices
                            ORDER BY created_at DESC
                            LIMIT %s OFFSET %s""",
@@ -818,8 +818,8 @@ def dashboard_invoices():
                     inv['invoice_date'] = str(inv['invoice_date'])
                 if inv.get('total_ttc') is not None:
                     inv['total_ttc'] = float(inv['total_ttc'])
-                if inv.get('status') is not None:
-                    inv['status'] = str(inv['status'])
+                if inv.get('sent_status') is not None:
+                    inv['sent_status'] = str(inv['sent_status'])
                 invoices.append(inv)
 
             total_pages = math.ceil(total / per_page) if total > 0 else 1
@@ -1135,7 +1135,7 @@ def send_to_pa():
             cursor.execute(
                 """SELECT invoice_num, company_name, invoice_date, total_ttc, pdf_path
                    FROM sent_invoices
-                   WHERE status = 'PENDING'
+                   WHERE sent_status = 'PENDING'
                    ORDER BY created_at ASC"""
             )
             columns = [desc[0] for desc in cursor.description]
@@ -1191,7 +1191,7 @@ def api_send_to_pa():
         try:
             with db_cursor() as (_conn, cursor):
                 cursor.execute(
-                    "SELECT pdf_path FROM sent_invoices WHERE invoice_num = %s AND status = 'PENDING'",
+                    "SELECT pdf_path FROM sent_invoices WHERE invoice_num = %s AND sent_status = 'PENDING'",
                     (num,),
                 )
                 row = cursor.fetchone()
@@ -1214,8 +1214,9 @@ def api_send_to_pa():
                 results.append({'invoice_num': num, 'status': 'error', 'message': str(error_msg)})
             else:
                 sent_at = response.get('created_at', now)
-                update_invoice_sent_ok(num, sent_at)
-                _log_pa(f"[{now_ts}] OK    {num} — Envoyée avec succès")
+                pa_id = response.get('id')
+                update_invoice_sent_ok(num, sent_at, pa_id)
+                _log_pa(f"[{now_ts}] OK    {num} — Envoyée avec succès (pa_id={pa_id})")
                 results.append({'invoice_num': num, 'status': 'ok', 'message': 'Envoyée avec succès'})
 
         except Exception as e:

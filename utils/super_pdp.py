@@ -186,22 +186,23 @@ def send_facturx_to_pdp(pdf_path: str) -> dict:
     return response
 
 
-def update_invoice_sent_ok(invoice_num: str, sent_at: str) -> None:
+def update_invoice_sent_ok(invoice_num: str, sent_at: str, pa_id: int = None) -> None:
     """
     Met à jour une facture en statut SENT-OK après téléversement réussi.
 
     Args:
         invoice_num: Numéro de la facture (clé primaire sent_invoices).
         sent_at: Timestamp ISO 8601 du téléversement (created_at de la réponse API).
+        pa_id: ID de la facture chez SuperPDP (optionnel).
     """
     from utils.db import db_cursor
 
     _load_env()
     with db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "UPDATE sent_invoices SET status = 'SENT-OK', sent_at = %s "
+            "UPDATE sent_invoices SET sent_status = 'SENT-OK', sent_at = %s, pa_id = %s "
             "WHERE invoice_num = %s",
-            (sent_at, invoice_num),
+            (sent_at, pa_id, invoice_num),
         )
 
 
@@ -219,7 +220,7 @@ def update_invoice_sent_error(invoice_num: str, exception: str, sent_at: str) ->
     _load_env()
     with db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "UPDATE sent_invoices SET status = 'SENT-ERROR', exception = %s, "
+            "UPDATE sent_invoices SET sent_status = 'SENT-ERROR', exception = %s, "
             "sent_at = %s WHERE invoice_num = %s",
             (exception, sent_at, invoice_num),
         )
@@ -282,3 +283,49 @@ def check_pdp_token(token: str) -> dict:
         )
 
     return response
+
+
+def get_invoice_events(invoice_id: int) -> dict:
+    """
+    Récupère les infos et événements d'une facture via l'API SuperPDP.
+
+    Args:
+        invoice_id: ID de la facture chez SuperPDP (pa_id).
+
+    Returns:
+        Dictionnaire JSON de la réponse API (infos facture + événements).
+
+    Raises:
+        RuntimeError: Si l'API retourne une erreur HTTP.
+    """
+    token_data = get_cached_pdp_token()
+    access_token = token_data["access_token"]
+
+    result = subprocess.run(
+        [
+            "curl", "-s",
+            "-H", f"Authorization: Bearer {access_token}",
+            f"https://api.superpdp.tech/v1.beta/invoices/{invoice_id}",
+        ],
+        capture_output=True, text=True, timeout=15,
+    )
+
+    data = json.loads(result.stdout)
+
+    if data.get("http_status_code", 200) != 200:
+        raise RuntimeError(f"HTTP {data.get('http_status_code')} — {result.stdout}")
+
+    return data
+
+
+def check_validation(events: list[dict]) -> bool:
+    """
+    Vérifie si une facture a été validée par la PDP.
+
+    Args:
+        events: Liste d'événements retournés par get_invoice_events().
+
+    Returns:
+        True si un événement a le status_code 'api:validated'.
+    """
+    return any(e.get("status_code") == "api:validated" for e in events)

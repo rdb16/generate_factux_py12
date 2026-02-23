@@ -5,43 +5,14 @@ Usage: uv run python tests/test_invoice_events.py <invoice_id>
 Exemple: uv run python tests/test_invoice_events.py 16280
 """
 
-import json
-import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from utils.super_pdp import get_cached_pdp_token
+from utils.super_pdp import get_cached_pdp_token, get_invoice_events, check_validation
 
 API_BASE = "https://api.superpdp.tech/v1.beta"
-
-
-def get_invoice_events(invoice_id: int) -> dict:
-    """Récupère les infos et événements d'une facture via l'API SuperPDP."""
-    token_data = get_cached_pdp_token()
-    access_token = token_data["access_token"]
-
-    result = subprocess.run(
-        [
-            "curl", "-s",
-            "-H", f"Authorization: Bearer {access_token}",
-            f"{API_BASE}/invoices/{invoice_id}",
-        ],
-        capture_output=True, text=True, timeout=15,
-    )
-
-    data = json.loads(result.stdout)
-
-    if data.get("http_status_code", 200) != 200:
-        raise RuntimeError(f"HTTP {data.get('http_status_code')} — {result.stdout}")
-
-    return data
-
-
-def check_validation(events: list[dict]) -> bool:
-    """Vérifie si la facture a été validée (status_code 'api:validated')."""
-    return any(e.get("status_code") == "api:validated" for e in events)
 
 
 def test_invoice_events(invoice_id: int):
