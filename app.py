@@ -1231,6 +1231,20 @@ def api_send_to_pa():
     return jsonify({'results': results})
 
 
+@app.route('/api/shutdown', methods=['POST'])
+def shutdown():
+    """Termine la session et éteint le serveur."""
+    now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    _log_pa(f"[{now_ts}] Session terminée par {os.getlogin()}")
+    _log_pa('*' * 90)
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is not None:
+        func()
+        return jsonify({'message': 'Serveur arrêté'}), 200
+    # Fallback : os._exit pour les versions récentes de Werkzeug
+    os._exit(0)
+
+
 if __name__ == '__main__':
     # Valider la configuration au démarrage
     validate_startup_config()
