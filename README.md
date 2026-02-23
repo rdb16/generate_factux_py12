@@ -86,7 +86,7 @@ L'application valide automatiquement : formats SIRET/SIREN/BIC/TVA, cohérence S
 ## Routes Flask
 
 | Méthode | Route | Description |
-|---------|-------|-------------|
+| --------- | ------- | ------------- |
 | GET | `/` | Formulaire step 1 (infos facture + client) |
 | POST | `/invoice/step1` | Valide step 1, stocke en session (JSON) |
 | GET | `/invoice/step2` | Formulaire step 2 (lignes de facturation) |
@@ -100,7 +100,7 @@ L'application valide automatiquement : formats SIRET/SIREN/BIC/TVA, cohérence S
 Quand le taux TVA > 0%, la catégorie `S` (standard) est appliquée automatiquement. Quand le taux est à 0%, l'utilisateur choisit parmi :
 
 | Code | Catégorie | Motif requis | Cas d'usage |
-|------|-----------|--------------|-------------|
+| ------ | ----------- | -------------- | ------------- |
 | `Z` | Taux zéro | Non | Taux zéro réglementaire |
 | `E` | Exonéré | Oui | Franchise en base, soins médicaux, enseignement |
 | `AE` | Autoliquidation | Oui | Sous-traitance BTP, art. 283-2 CGI |
@@ -151,7 +151,7 @@ psql -d factur_x -f resources/sql/insert_mock_client_metadata.sql
 La table `sent_invoices` utilise un enum `invoice_status` avec trois valeurs :
 
 | Statut | Description | Contrainte sur `exception` |
-|--------|-------------|---------------------------|
+| -------- | ------------- | --------------------------- |
 | `PENDING` | Facture générée, pas encore envoyée | Aucune |
 | `SENT-OK` | Envoi réussi | Aucune |
 | `SENT-ERROR` | Erreur à l'envoi | Obligatoire (non NULL, non vide) |
@@ -189,12 +189,13 @@ uv run python tests/test_token.py   # Tester l'authentification SuperPDP
 ```
 
 Le module `utils/super_pdp.py` expose :
+
 - `get_pdp_token()` — Récupère un jeton OAuth2 (retourne le JSON complet : `access_token`, `expires_in`, `token_type`)
 - `check_pdp_token(token)` — Vérifie la validité du jeton via `GET /v1.beta/companies/me`
 
 ## Structure du projet
 
-```
+```text
 Generate-FacturX-PY/
 ├── app.py                        # Application Flask (routes, validation, session)
 ├── utils/                        # Package modules utilitaires
@@ -223,7 +224,7 @@ Generate-FacturX-PY/
 ## Conformité
 
 | Standard | Détail |
-|----------|--------|
+| ---------- | -------- |
 | **EN 16931** | Profil EN16931 (Factur-X 1.07, CII D22B) |
 | **XSD** | Validation automatique à la génération |
 | **Schematron** | PEPPOL-EN16931, catégories TVA (S/Z/E/AE/G/K/O) avec BT-120/BT-121 |

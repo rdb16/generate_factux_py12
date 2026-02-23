@@ -52,6 +52,14 @@ Format clé=valeur. Champs émetteur validés au démarrage :
 - `resources/templates/invoice_step1.html` : Formulaire initial (POST vers `/invoice/step1`)
 - `resources/templates/invoice_step2.html` : Lignes + totaux (POST vers `/invoice`)
 
+## Markdown (markdownlint)
+
+Lors de l'édition de fichiers `.md`, respecter ces règles :
+
+- **MD060** : Espaces autour des pipes dans les séparateurs de tableaux (`| --- | --- |` et non `|---|---|`)
+- **MD032** : Ligne vide avant et après chaque liste à puces ou numérotée
+- **MD040** : Toujours spécifier un langage sur les blocs de code (` ```bash `, ` ```text `, ` ```python `, etc.)
+
 ## Versioning
 
 Lors d'un changement de version, toujours mettre à jour **les deux fichiers** :
