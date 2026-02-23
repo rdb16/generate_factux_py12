@@ -297,7 +297,7 @@ def validate_startup_config() -> None:
     # Écrire le header de session dans le fichier de log PA
     _log_pa('')
     _log_pa('*' * 60)
-    _log_pa(f"Session ouverte le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    _log_pa(f"Session ouverte le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} par : {os.getlogin()}, pour le facturier : {CONFIG.get('name', 'N/A')}")
 
 
 # Charger la configuration
