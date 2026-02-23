@@ -459,6 +459,13 @@
                             >
                         </div>
                         <div class="summary-item">
+                            <span class="label">Conditions : </span>
+                            <span class="value"
+                                >{{ invoice.payment_terms | default("-")
+                                }}</span
+                            >
+                        </div>
+                        <div class="summary-item">
                             <span class="label">Devise : </span>
                             <span class="value" id="sum-currency"
                                 >{{ invoice.currency_code }}</span

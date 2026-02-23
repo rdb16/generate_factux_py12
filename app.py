@@ -344,6 +344,13 @@ def validate_step1(data: dict, auto_numbering: bool = False) -> list[dict]:
     if not data.get('recipient_country_code'):
         errors.append({'field': 'recipient_country_code', 'message': 'Le pays du client est obligatoire'})
 
+    # BR-CO-25 : si montant dû > 0, BT-9 (date échéance) ou BT-20 (conditions paiement) requis
+    if not data.get('due_date') and not data.get('payment_terms', '').strip():
+        errors.append({
+            'field': 'due_date',
+            'message': "La date d'échéance ou les conditions de paiement doivent être renseignées (règle BR-CO-25)"
+        })
+
     return errors
 
 
@@ -1038,6 +1045,7 @@ def generate_invoice():
             'currency_code': invoice_data.get('currency_code', 'EUR'),
             'issue_date': format_date_display(invoice_data['issue_date']),
             'due_date': format_date_display(invoice_data.get('due_date', '')),
+            'payment_terms': invoice_data.get('payment_terms', ''),
             'recipient_name': invoice_data['recipient_name'],
             'recipient_siret': invoice_data['recipient_siret'],
             'emitter_name': EMITTER['name'],

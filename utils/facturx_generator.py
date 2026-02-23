@@ -341,13 +341,19 @@ def generate_facturx_xml(data: dict) -> str:
         tax_rate = ET.SubElement(tax, _qname('ram', 'RateApplicablePercent'))
         tax_rate.text = _format_amount(vat_info['rate'])
 
-    # Conditions de paiement
-    if invoice.get('due_date'):
-        payment_terms = ET.SubElement(settlement, _qname('ram', 'SpecifiedTradePaymentTerms'))
-        due_dt = ET.SubElement(payment_terms, _qname('ram', 'DueDateDateTime'))
-        due_dt_str = ET.SubElement(due_dt, _qname('udt', 'DateTimeString'))
-        due_dt_str.set('format', '102')
-        due_dt_str.text = _format_date(invoice['due_date'])
+    # Conditions de paiement (BR-CO-25 : BT-20 ou BT-9 requis si montant dû > 0)
+    if invoice.get('due_date') or invoice.get('payment_terms'):
+        payment_terms_el = ET.SubElement(settlement, _qname('ram', 'SpecifiedTradePaymentTerms'))
+        # BT-20 : Description des conditions de paiement
+        if invoice.get('payment_terms'):
+            description = ET.SubElement(payment_terms_el, _qname('ram', 'Description'))
+            description.text = invoice['payment_terms']
+        # BT-9 : Date d'échéance
+        if invoice.get('due_date'):
+            due_dt = ET.SubElement(payment_terms_el, _qname('ram', 'DueDateDateTime'))
+            due_dt_str = ET.SubElement(due_dt, _qname('udt', 'DateTimeString'))
+            due_dt_str.set('format', '102')
+            due_dt_str.text = _format_date(invoice['due_date'])
 
     # Totaux
     monetary_sum = ET.SubElement(settlement, _qname('ram', 'SpecifiedTradeSettlementHeaderMonetarySummation'))
