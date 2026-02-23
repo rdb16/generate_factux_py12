@@ -2,6 +2,7 @@
 Application Flask pour générer des factures au format Factur-X.
 """
 
+import json
 import math
 import os
 import sys
@@ -15,8 +16,16 @@ from utils.facturx_generator import generate_facturx_xml
 from utils.pdf_generator import generate_invoice_pdf
 from utils.invoice_calc import calculate_line_totals, calculate_invoice_totals
 from utils.db import get_db_connection, db_cursor, db_connection
-from utils.super_pdp import get_pdp_token, send_facturx_to_pdp, update_invoice_sent_ok, update_invoice_sent_error
+from utils.super_pdp import get_pdp_token, get_cached_pdp_token, send_facturx_to_pdp, update_invoice_sent_ok, update_invoice_sent_error
 from facturx import generate_from_binary
+
+
+def _log_pa(message: str) -> None:
+    """Écrit une ligne dans log/sent_invoices.log."""
+    log_path = Path('log/sent_invoices.log')
+    log_path.parent.mkdir(exist_ok=True)
+    with open(log_path, 'a', encoding='utf-8') as f:
+        f.write(message + '\n')
 
 
 def load_config(config_path: str = 'resources/config/ma-conf.txt') -> dict:
@@ -284,6 +293,11 @@ def validate_startup_config() -> None:
             print("  - Numérotation auto: Désactivée (requiert is_db_pg=True)")
         print(f"  - Stockage XML: {CONFIG.get('xml_storage', './data/factures-xml')}")
     print("=" * 60 + "\n")
+
+    # Écrire le header de session dans le fichier de log PA
+    _log_pa('')
+    _log_pa('*' * 60)
+    _log_pa(f"Session ouverte le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 
 # Charger la configuration
@@ -1153,6 +1167,19 @@ def api_send_to_pa():
     invoice_nums = data['invoice_nums']
     results = []
 
+    # Loguer le token Bearer (tronqué) et sa validité
+    try:
+        token_data = get_cached_pdp_token()
+        token_short = token_data['access_token'][-6:]
+        fetched_at = token_data.get('fetched_at', 0)
+        expires_in = token_data.get('expires_in', 0)
+        expiry_time = datetime.fromtimestamp(fetched_at + expires_in).strftime('%H:%M:%S')
+        now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        _log_pa(f"[{now_ts}] TOKEN Bearer ...{token_short} — valide jusqu'à {expiry_time}")
+    except Exception as e:
+        now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        _log_pa(f"[{now_ts}] TOKEN ERROR — {e}")
+
     for num in invoice_nums:
         now = datetime.now().isoformat()
         try:
@@ -1168,19 +1195,27 @@ def api_send_to_pa():
                 continue
 
             pdf_path = row[0]
+            now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _log_pa(f"[{now_ts}] ENVOI {num}")
             response = send_facturx_to_pdp(pdf_path)
+            now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _log_pa(f"[{now_ts}] REPONSE {json.dumps(response, ensure_ascii=False)}")
 
             if 'error' in response or response.get('http_status_code', 200) >= 400:
                 error_msg = response.get('error', response.get('message', str(response)))
                 update_invoice_sent_error(num, str(error_msg), now)
+                _log_pa(f"[{now_ts}] ERROR {num} — {error_msg}")
                 results.append({'invoice_num': num, 'status': 'error', 'message': str(error_msg)})
             else:
                 sent_at = response.get('created_at', now)
                 update_invoice_sent_ok(num, sent_at)
+                _log_pa(f"[{now_ts}] OK    {num} — Envoyée avec succès")
                 results.append({'invoice_num': num, 'status': 'ok', 'message': 'Envoyée avec succès'})
 
         except Exception as e:
             print(f"[ERROR] Envoi facture {num}: {e}")
+            now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _log_pa(f"[{now_ts}] ERROR {num} — {e}")
             try:
                 update_invoice_sent_error(num, str(e), now)
             except Exception:

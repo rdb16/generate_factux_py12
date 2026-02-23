@@ -17,3 +17,6 @@ facturx.pdf
 
 # PDP token cache
 .pdp_token_cache.json
+
+# Log files
+log/
