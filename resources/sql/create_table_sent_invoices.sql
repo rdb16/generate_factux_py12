@@ -41,4 +41,20 @@ CREATE INDEX IF NOT EXISTS idx_sent_invoices_invoice_date
 CREATE INDEX IF NOT EXISTS idx_sent_invoices_sent_status
     ON sent_invoices (sent_status);
 
+-- Trigger : pa_id obligatoire quand sent_status passe à 'SENT-OK'
+CREATE OR REPLACE FUNCTION check_pa_id_on_sent_ok()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.sent_status = 'SENT-OK' AND NEW.pa_id IS NULL THEN
+        RAISE EXCEPTION 'Le champ pa_id est obligatoire quand sent_status = SENT-OK';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_check_pa_id_on_sent_ok ON sent_invoices;
+CREATE TRIGGER trg_check_pa_id_on_sent_ok
+    BEFORE UPDATE ON sent_invoices
+    FOR EACH ROW
+    EXECUTE FUNCTION check_pa_id_on_sent_ok();
 
