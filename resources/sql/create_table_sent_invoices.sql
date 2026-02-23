@@ -41,20 +41,4 @@ CREATE INDEX IF NOT EXISTS idx_sent_invoices_invoice_date
 CREATE INDEX IF NOT EXISTS idx_sent_invoices_sent_status
     ON sent_invoices (sent_status);
 
--- Trigger : exception obligatoire si sent_status = 'SENT-ERROR'
-CREATE OR REPLACE FUNCTION check_exception_on_status()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.sent_status = 'SENT-ERROR' AND (NEW.exception IS NULL OR NEW.exception = '') THEN
-        RAISE EXCEPTION 'Le champ exception est obligatoire quand sent_status = SENT-ERROR';
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_check_exception ON sent_invoices;
-CREATE TRIGGER trg_check_exception
-    BEFORE INSERT OR UPDATE ON sent_invoices
-    FOR EACH ROW
-    EXECUTE FUNCTION check_exception_on_status();
 
