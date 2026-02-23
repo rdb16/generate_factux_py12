@@ -512,8 +512,14 @@ def dashboard():
             expires_in = token_response.get('expires_in', 0)
             expiry_time = datetime.now() + timedelta(seconds=int(expires_in))
             pdp_token_validity = expiry_time.strftime("%H:%M:%S")
+            # Loguer le token Bearer (tronqué) et sa validité
+            token_short = token_response['access_token'][-6:]
+            now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _log_pa(f"[{now_ts}] TOKEN Bearer ...{token_short} — valide jusqu'à {pdp_token_validity}")
         except (EnvironmentError, RuntimeError) as e:
             pdp_token_error = str(e)
+            now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _log_pa(f"[{now_ts}] TOKEN ERROR — {e}")
 
     return render_template(
         'html/dashboard.html',
