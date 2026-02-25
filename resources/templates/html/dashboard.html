@@ -278,6 +278,14 @@
                 background: #fefcbf;
                 color: #975a16;
             }
+            .badge-validated {
+                background: #c6f6d5;
+                color: #276749;
+            }
+            .badge-not-validated {
+                background: #fed7d7;
+                color: #c53030;
+            }
 
             /* Pager */
             .pager {
@@ -478,10 +486,11 @@
                                 <th>Date</th>
                                 <th class="col-amount">Montant TTC</th>
                                 <th>Statut</th>
+                                <th>Validation</th>
                             </tr>
                         </thead>
                         <tbody id="invoiceTableBody">
-                            <tr class="empty-row"><td colspan="5">Chargement...</td></tr>
+                            <tr class="empty-row"><td colspan="6">Chargement...</td></tr>
                         </tbody>
                     </table>
                     <div class="pager" id="pager"></div>
@@ -496,6 +505,9 @@
                     <a href="/send-to-pa" class="btn-action green">
                         Envoyer vers PA
                     </a>
+                    <button class="btn-action green" onclick="checkValidations()" id="btnCheckValidations">
+                        V&eacute;rifier validations
+                    </button>
                     {% else %}
                     <button class="btn-action" disabled title="Fonctionnalit&eacute; &agrave; venir">
                         Envoyer vers PA
@@ -590,7 +602,7 @@
                 const thead = document.querySelector('.invoice-table thead tr');
                 const countEl = document.getElementById('invoiceCount');
                 const pagerEl = document.getElementById('pager');
-                const colSpan = currentTab === 'sent' ? 5 : 4;
+                const colSpan = currentTab === 'sent' ? 6 : 4;
                 tbody.innerHTML = '<tr class="empty-row"><td colspan="' + colSpan + '">Chargement...</td></tr>';
                 pagerEl.innerHTML = '';
 
@@ -605,7 +617,7 @@
                 if (currentTab === 'sent') {
                     thead.innerHTML =
                         '<th>Num\u00e9ro</th><th>Client</th><th>Date</th>' +
-                        '<th class="col-amount">Montant TTC</th><th>Statut</th>';
+                        '<th class="col-amount">Montant TTC</th><th>Statut</th><th>Validation</th>';
                 } else {
                     thead.innerHTML =
                         '<th>Num\u00e9ro</th><th>Fournisseur</th><th>Date</th>' +
@@ -635,12 +647,19 @@
                             const st = inv.sent_status || '';
                             const statusClass = st === 'SENT-ERROR' ? 'badge-ko' : (st === 'SENT-OK' ? 'badge-ok' : 'badge-pending');
                             const statusLabel = st === 'SENT-ERROR' ? 'Erreur' : (st === 'SENT-OK' ? 'Envoy\u00e9e' : 'En attente');
+                            let validationCell = '-';
+                            if (inv.pa_validation === true) {
+                                validationCell = '<span class="badge badge-validated">Valid\u00e9e</span>';
+                            } else if (inv.pa_validation === false) {
+                                validationCell = '<span class="badge badge-not-validated">Non valid\u00e9e</span>';
+                            }
                             html += '<tr>' +
                                 '<td>' + escapeHtml(inv.invoice_num) + '</td>' +
                                 '<td>' + escapeHtml(inv.company_name) + '</td>' +
                                 '<td>' + escapeHtml(inv.invoice_date) + '</td>' +
                                 '<td class="col-amount">' + escapeHtml(amount) + '</td>' +
                                 '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
+                                '<td>' + validationCell + '</td>' +
                                 '</tr>';
                         } else {
                             html += '<tr>' +
@@ -699,11 +718,40 @@
                 }
             }
 
+            async function checkValidations() {
+                const btn = document.getElementById('btnCheckValidations');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'V\u00e9rification...';
+                }
+                try {
+                    const resp = await fetch('/api/dashboard/check-validations', { method: 'POST' });
+                    const data = await resp.json();
+                    if (data.checked > 0) {
+                        console.log('Validations v\u00e9rifi\u00e9es :', data.checked,
+                            '| valid\u00e9es :', data.validated,
+                            '| non valid\u00e9es :', data.not_validated);
+                        loadInvoices();
+                    }
+                } catch (err) {
+                    console.error('Erreur v\u00e9rification validations:', err);
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = 'V\u00e9rifier validations';
+                    }
+                }
+            }
+
             // Init
             initDates();
             testConnection();
             loadStats();
             loadClientsCount();
-            loadInvoices();
+            loadInvoices().then(function() {
+                {% if super_pdp_as_pa %}
+                checkValidations();
+                {% endif %}
+            });
         </script>
 {% endblock %}

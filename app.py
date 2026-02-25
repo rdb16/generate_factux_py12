@@ -16,7 +16,7 @@ from utils.facturx_generator import generate_facturx_xml
 from utils.pdf_generator import generate_invoice_pdf
 from utils.invoice_calc import calculate_line_totals, calculate_invoice_totals
 from utils.db import get_db_connection, db_cursor, db_connection
-from utils.super_pdp import get_pdp_token, get_cached_pdp_token, send_facturx_to_pdp, update_invoice_sent_ok, update_invoice_sent_error
+from utils.super_pdp import get_pdp_token, get_cached_pdp_token, send_facturx_to_pdp, update_invoice_sent_ok, update_invoice_sent_error, get_invoice_events, check_validation, update_pa_validation
 from facturx import generate_from_binary
 
 
@@ -791,7 +791,7 @@ def dashboard_invoices():
 
                 if has_dates:
                     cursor.execute(
-                        """SELECT invoice_num, company_name, invoice_date, total_ttc, sent_status
+                        """SELECT invoice_num, company_name, invoice_date, total_ttc, sent_status, pa_validation
                            FROM sent_invoices
                            WHERE invoice_date >= %s AND invoice_date <= %s
                            ORDER BY created_at DESC
@@ -800,7 +800,7 @@ def dashboard_invoices():
                     )
                 else:
                     cursor.execute(
-                        """SELECT invoice_num, company_name, invoice_date, total_ttc, sent_status
+                        """SELECT invoice_num, company_name, invoice_date, total_ttc, sent_status, pa_validation
                            FROM sent_invoices
                            ORDER BY created_at DESC
                            LIMIT %s OFFSET %s""",
@@ -833,6 +833,47 @@ def dashboard_invoices():
     except Exception as e:
         print(f"[ERROR] Dashboard invoices: {e}")
         return jsonify({'invoices': [], 'error': str(e)}), 500
+
+
+@app.route('/api/dashboard/check-validations', methods=['POST'])
+def check_validations():
+    """Vérifie le statut de validation PDP pour les factures SENT-OK non vérifiées."""
+    if CONFIG.get('is_db_pg') is not True or CONFIG.get('super_pdp_as_pa') is not True:
+        return jsonify({'error': 'Fonctionnalité non activée'}), 403
+
+    try:
+        with db_cursor() as (_conn, cursor):
+            cursor.execute(
+                "SELECT invoice_num, pa_id FROM sent_invoices "
+                "WHERE sent_status = 'SENT-OK' AND pa_id IS NOT NULL AND pa_validation IS NULL"
+            )
+            rows = cursor.fetchall()
+    except Exception as e:
+        print(f"[ERROR] check-validations SELECT: {e}")
+        return jsonify({'error': str(e)}), 500
+
+    checked = 0
+    validated_count = 0
+    not_validated_count = 0
+
+    for invoice_num, pa_id in rows:
+        try:
+            data = get_invoice_events(pa_id)
+            validated = check_validation(data.get('events', []))
+            update_pa_validation(invoice_num, validated)
+            checked += 1
+            if validated:
+                validated_count += 1
+            else:
+                not_validated_count += 1
+        except Exception as e:
+            print(f"[WARNING] check-validations {invoice_num} (pa_id={pa_id}): {e}")
+
+    return jsonify({
+        'checked': checked,
+        'validated': validated_count,
+        'not_validated': not_validated_count,
+    })
 
 
 @app.route('/api/clients/count')

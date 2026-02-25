@@ -318,6 +318,24 @@ def get_invoice_events(invoice_id: int) -> dict:
     return data
 
 
+def update_pa_validation(invoice_num: str, validated: bool) -> None:
+    """
+    Met à jour le champ pa_validation d'une facture en base.
+
+    Args:
+        invoice_num: Numéro de la facture (clé primaire sent_invoices).
+        validated: True si la facture est validée par la PDP, False sinon.
+    """
+    from utils.db import db_cursor
+
+    _load_env()
+    with db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE sent_invoices SET pa_validation = %s WHERE invoice_num = %s",
+            (validated, invoice_num),
+        )
+
+
 def check_validation(events: list[dict]) -> bool:
     """
     Vérifie si une facture a été validée par la PDP.
