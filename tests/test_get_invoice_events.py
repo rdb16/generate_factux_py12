@@ -7,6 +7,7 @@ Exemple: uv run python tests/test_invoice_events.py 16280
 
 import sys
 from pathlib import Path
+import json
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -40,6 +41,11 @@ def test_invoice_events(invoice_id: int):
     except RuntimeError as e:
         print(f"ERREUR API: {e}")
         return
+
+    #2.1 Affichage du json
+
+    print("\n[2.1] Données reçues de l'API :")
+    print(json.dumps(data, indent=2, ensure_ascii=False))
 
     invoice_number = data.get("en_invoice", {}).get("number", "N/A")
     events = data.get("events", [])
