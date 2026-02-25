@@ -856,17 +856,30 @@ def check_validations():
     validated_count = 0
     not_validated_count = 0
 
+    now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if rows:
+        _log_pa(f"[{now_ts}] CHECK-VALIDATIONS — {len(rows)} facture(s) à vérifier")
+
     for invoice_num, pa_id in rows:
         try:
             data = get_invoice_events(pa_id)
-            validated = check_validation(data.get('events', []))
+            events = data.get('events', [])
+            validated = check_validation(events)
             update_pa_validation(invoice_num, validated)
             checked += 1
             if validated:
                 validated_count += 1
             else:
                 not_validated_count += 1
+            status_label = 'VALIDÉE' if validated else 'NON VALIDÉE'
+            last_event = events[-1] if events else {}
+            last_status = last_event.get('status_code', '-')
+            last_ts = last_event.get('created_at', '-')
+            now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _log_pa(f"[{now_ts}] CHECK  {invoice_num} (pa_id={pa_id}) — {status_label} | dernier événement: {last_status} ({last_ts})")
         except Exception as e:
+            now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _log_pa(f"[{now_ts}] CHECK  {invoice_num} (pa_id={pa_id}) — ERREUR: {e}")
             print(f"[WARNING] check-validations {invoice_num} (pa_id={pa_id}): {e}")
 
     return jsonify({
