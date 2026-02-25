@@ -18,6 +18,11 @@ Application Flask de facturation électronique au format **Factur-X** (PDF/A-3B 
 ```bash
 git clone <url-du-repo> && cd Generate-FacturX-PY
 uv sync                       # Installer les dépendances
+```
+
+Avant de lancer le serveur, configurer l'émetteur et le `.env` (voir sections ci-dessous), puis :
+
+```bash
 uv run python app.py           # Lancer (http://localhost:5000)
 ```
 
