@@ -4,6 +4,7 @@ Générateur de fichiers XML au format Factur-X (profil EN16931).
 Basé sur la norme EN 16931 et le standard Factur-X 1.07 (UN/CEFACT CII D22B).
 """
 
+import re
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from xml.etree import ElementTree as ET
@@ -60,6 +61,15 @@ _calculate_line_totals = calculate_line_totals
 _calculate_invoice_totals = calculate_invoice_totals
 
 
+def _validate_identifier(value: str, expected_length: int, label: str) -> None:
+    """Valide qu'un identifiant est composé uniquement de chiffres et a la longueur attendue."""
+    if not re.match(rf'^\d{{{expected_length}}}$', value):
+        raise ValueError(
+            f"{label} invalide : '{value}' "
+            f"(attendu : exactement {expected_length} chiffres)"
+        )
+
+
 def _add_postal_address(parent, address: str, city: str, postal_code: str = None, country_code: str = 'FR'):
     """Ajoute un bloc PostalTradeAddress (LineOne, PostcodeCode, CityName, CountryID)."""
     addr = ET.SubElement(parent, _qname('ram', 'PostalTradeAddress'))
@@ -87,10 +97,11 @@ def _add_tax_registration(parent, vat_number: str):
 
 
 def _add_uri_endpoint(parent, siret: str):
-    """Ajoute un bloc URIUniversalCommunication (schemeID=0009)."""
+    """Ajoute un bloc URIUniversalCommunication (schemeID=0225, SIRET)."""
+    _validate_identifier(siret, 14, 'SIRET (endpoint)')
     endpoint = ET.SubElement(parent, _qname('ram', 'URIUniversalCommunication'))
     uri = ET.SubElement(endpoint, _qname('ram', 'URIID'))
-    uri.set('schemeID', '0009')
+    uri.set('schemeID', '0225')
     uri.text = siret
     return endpoint
 
@@ -244,6 +255,7 @@ def generate_facturx_xml(data: dict) -> str:
     seller_name.text = emitter['name']
 
     # Identifiants légaux du vendeur (SIREN — 9 chiffres, BR-FR-10)
+    _validate_identifier(emitter['siren'], 9, 'SIREN vendeur')
     seller_legal = ET.SubElement(seller, _qname('ram', 'SpecifiedLegalOrganization'))
     seller_siren = ET.SubElement(seller_legal, _qname('ram', 'ID'))
     seller_siren.set('schemeID', '0002')
@@ -252,8 +264,8 @@ def generate_facturx_xml(data: dict) -> str:
     # Adresse du vendeur (BT-35..BT-40)
     _add_postal_address(seller, emitter['address'], emitter['city'], None, emitter['country_code'])
 
-    # Adresse électronique du vendeur (BT-34, BR-FR-13)
-    _add_uri_endpoint(seller, emitter['siret'])
+    # Adresse électronique du vendeur (BT-34, BR-FR-13 — identifiant Peppol)
+    _add_uri_endpoint(seller, emitter.get('recipient_pepol') or emitter['siret'])
 
     # TVA du vendeur
     if emitter.get('vat_number'):
@@ -264,11 +276,14 @@ def generate_facturx_xml(data: dict) -> str:
     buyer_name = ET.SubElement(buyer, _qname('ram', 'Name'))
     buyer_name.text = invoice['recipient_name']
 
-    # Identifiants légaux de l'acheteur
+    # Identifiants légaux de l'acheteur (SIREN — 9 premiers chiffres du SIRET)
+    _validate_identifier(invoice['recipient_siret'], 14, 'SIRET acheteur')
+    buyer_siren = invoice['recipient_siret'][:9]
+    _validate_identifier(buyer_siren, 9, 'SIREN acheteur')
     buyer_legal = ET.SubElement(buyer, _qname('ram', 'SpecifiedLegalOrganization'))
-    buyer_siret = ET.SubElement(buyer_legal, _qname('ram', 'ID'))
-    buyer_siret.set('schemeID', '0002')
-    buyer_siret.text = invoice['recipient_siret']
+    buyer_siren_el = ET.SubElement(buyer_legal, _qname('ram', 'ID'))
+    buyer_siren_el.set('schemeID', '0002')
+    buyer_siren_el.text = buyer_siren
 
     # Adresse de l'acheteur (BT-50..BT-55)
     if invoice.get('recipient_address') or invoice.get('recipient_city'):
@@ -280,8 +295,8 @@ def generate_facturx_xml(data: dict) -> str:
             invoice['recipient_country_code'],
         )
 
-    # Adresse électronique de l'acheteur (BT-49, BR-FR-12)
-    _add_uri_endpoint(buyer, invoice['recipient_siret'])
+    # Adresse électronique de l'acheteur (BT-49, BR-FR-12 — identifiant Peppol)
+    _add_uri_endpoint(buyer, invoice.get('recipient_pepol') or invoice['recipient_siret'])
 
     # TVA de l'acheteur
     if invoice.get('recipient_vat_number'):

@@ -109,6 +109,13 @@ def validate_emitter_config(config: dict) -> list[str]:
     if not config.get('pmd_text', '').strip():
         errors.append("Texte pénalités de retard (pmd_text) non renseigné dans la configuration")
 
+    # Validation identifiant Peppol émetteur (14 chiffres, comme un SIRET)
+    recipient_pepol = config.get('recipient_pepol', '')
+    if not recipient_pepol:
+        errors.append("Identifiant Peppol (recipient_pepol) non renseigné dans la configuration")
+    elif not re.match(r'^\d{14}$', recipient_pepol):
+        errors.append(f"Identifiant Peppol invalide: '{recipient_pepol}' (doit contenir 14 chiffres)")
+
     return errors
 
 
@@ -323,6 +330,8 @@ EMITTER = {
     # XML Factur-X (notes BR-FR-05)
     'pmt_text': CONFIG.get('pmt_text', ''),
     'pmd_text': CONFIG.get('pmd_text', ''),
+    # Identifiant Peppol émetteur (endpoint URIUniversalCommunication)
+    'recipient_pepol': CONFIG.get('recipient_pepol', ''),
 }
 
 app = Flask(__name__, template_folder='resources/templates', static_folder='resources', static_url_path='/static')
@@ -584,6 +593,7 @@ def submit_step1():
         'recipient_name': request.form.get('recipient_name', ''),
         'recipient_legal_form': request.form.get('recipient_legal_form', ''),
         'recipient_siret': request.form.get('recipient_siret', ''),
+        'recipient_pepol': request.form.get('recipient_pepol', ''),
         'recipient_vat_number': request.form.get('recipient_vat_number', ''),
         'recipient_address': request.form.get('recipient_address', ''),
         'recipient_postal_code': request.form.get('recipient_postal_code', ''),
@@ -619,13 +629,15 @@ def submit_step1():
             with db_cursor(commit=True) as (_conn, cursor):
                 cursor.execute(
                     """INSERT INTO client_metadata
-                       (recipient_name, cie_legal_form, recipient_siret, recipient_vat_number,
-                        recipient_address, recipient_postal_code, recipient_city, recipient_country_code)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                       (recipient_name, cie_legal_form, recipient_siret, recipient_pepol,
+                        recipient_vat_number, recipient_address, recipient_postal_code,
+                        recipient_city, recipient_country_code)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (
                         data['recipient_name'],
                         data['recipient_legal_form'],
                         data['recipient_siret'],
+                        data.get('recipient_pepol') or data['recipient_siret'],
                         data['recipient_vat_number'],
                         data['recipient_address'],
                         data['recipient_postal_code'],
@@ -666,8 +678,8 @@ def search_clients():
             like_pattern = f'%{q}%'
             cursor.execute(
                 """SELECT id, recipient_name, cie_legal_form, recipient_siret,
-                          recipient_vat_number, recipient_address, recipient_postal_code,
-                          recipient_city, recipient_country_code
+                          recipient_pepol, recipient_vat_number, recipient_address,
+                          recipient_postal_code, recipient_city, recipient_country_code
                    FROM client_metadata
                    WHERE recipient_name ILIKE %s OR recipient_siret ILIKE %s
                    ORDER BY recipient_name
