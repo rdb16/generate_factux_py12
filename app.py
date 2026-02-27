@@ -109,12 +109,12 @@ def validate_emitter_config(config: dict) -> list[str]:
     if not config.get('pmd_text', '').strip():
         errors.append("Texte pénalités de retard (pmd_text) non renseigné dans la configuration")
 
-    # Validation identifiant Peppol émetteur (14 chiffres, comme un SIRET)
+    # Validation identifiant Peppol émetteur (14 caractères : chiffres ou _)
     recipient_pepol = config.get('recipient_pepol', '')
     if not recipient_pepol:
         errors.append("Identifiant Peppol (recipient_pepol) non renseigné dans la configuration")
-    elif not re.match(r'^\d{14}$', recipient_pepol):
-        errors.append(f"Identifiant Peppol invalide: '{recipient_pepol}' (doit contenir 14 chiffres)")
+    elif not re.match(r'^[\d_]{14}$', recipient_pepol):
+        errors.append(f"Identifiant Peppol invalide: '{recipient_pepol}' (doit contenir 14 caractères : chiffres ou _)")
 
     return errors
 

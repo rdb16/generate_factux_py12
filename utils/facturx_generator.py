@@ -96,13 +96,22 @@ def _add_tax_registration(parent, vat_number: str):
     return tax_reg
 
 
-def _add_uri_endpoint(parent, siret: str):
-    """Ajoute un bloc URIUniversalCommunication (schemeID=0225, SIRET)."""
-    _validate_identifier(siret, 14, 'SIRET (endpoint)')
+def _validate_pepol(value: str) -> None:
+    """Valide qu'un identifiant Peppol fait 14 caractères (chiffres ou _)."""
+    if not re.match(r'^[\d_]{14}$', value):
+        raise ValueError(
+            f"Identifiant Peppol invalide : '{value}' "
+            f"(attendu : exactement 14 caractères, chiffres ou _)"
+        )
+
+
+def _add_uri_endpoint(parent, pepol_id: str):
+    """Ajoute un bloc URIUniversalCommunication (schemeID=0225, Peppol)."""
+    _validate_pepol(pepol_id)
     endpoint = ET.SubElement(parent, _qname('ram', 'URIUniversalCommunication'))
     uri = ET.SubElement(endpoint, _qname('ram', 'URIID'))
     uri.set('schemeID', '0225')
-    uri.text = siret
+    uri.text = pepol_id
     return endpoint
 
 
