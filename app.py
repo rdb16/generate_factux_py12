@@ -1272,8 +1272,11 @@ def download_pdf():
 
 @app.route('/invoice/new')
 def new_invoice():
-    """Vide la session et redirige vers step1."""
+    """Vide la session (sauf l'émetteur sélectionné) et redirige vers step1."""
+    emitter_id = session.get('emitter_id')
     session.clear()
+    if emitter_id:
+        session['emitter_id'] = emitter_id
     return redirect(url_for('show_step1'))
 
 
