@@ -169,6 +169,64 @@
                 border-bottom: none;
             }
 
+            /* Éditeur de description détaillée (rich text) */
+            .rte {
+                padding: 10px 16px 4px;
+                background: white;
+            }
+            .rte-label {
+                font-size: 11px;
+                font-weight: 600;
+                color: #718096;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 6px;
+            }
+            .rte-toolbar {
+                display: flex;
+                gap: 4px;
+                margin-bottom: 4px;
+            }
+            .rte-btn {
+                min-width: 30px;
+                padding: 4px 8px;
+                background: #edf2f7;
+                border: 1px solid #e2e8f0;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 13px;
+                color: #4a5568;
+                line-height: 1;
+            }
+            .rte-btn:hover {
+                background: #e2e8f0;
+            }
+            .rte-editor {
+                min-height: 40px;
+                max-height: 200px;
+                overflow-y: auto;
+                padding: 8px 12px;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                font-size: 14px;
+                background: white;
+                line-height: 1.4;
+            }
+            .rte-editor:focus {
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+            }
+            .rte-editor:empty:before {
+                content: attr(data-placeholder);
+                color: #a0aec0;
+            }
+            .rte-editor ul,
+            .rte-editor ol {
+                margin: 4px 0;
+                padding-left: 22px;
+            }
+
             /* Rabais */
             .discount-toggle {
                 font-size: 11px;
@@ -558,7 +616,7 @@
 
                 <div class="lines-container">
                     <div class="lines-header">
-                        <div>Description</div>
+                        <div>Libell&eacute;</div>
                         <div>Quantite</div>
                         <div>Prix unitaire HT</div>
                         <div>TVA %</div>
@@ -567,11 +625,23 @@
                     </div>
                     <div id="lines">
                         <div class="line-wrapper" data-id="0">
+                            <div class="rte">
+                                <div class="rte-label">Description d&eacute;taill&eacute;e (optionnel)</div>
+                                <div class="rte-toolbar">
+                                    <button type="button" class="rte-btn" data-cmd="bold" title="Gras"><b>B</b></button>
+                                    <button type="button" class="rte-btn" data-cmd="italic" title="Italique"><i>I</i></button>
+                                    <button type="button" class="rte-btn" data-cmd="underline" title="Soulign&eacute;"><u>U</u></button>
+                                    <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Liste &agrave; puces">&#8226;</button>
+                                    <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Liste num&eacute;rot&eacute;e">1.</button>
+                                </div>
+                                <div class="rte-editor" contenteditable="true" data-placeholder="Description d&eacute;taill&eacute;e : retours &agrave; la ligne, listes, gras, soulignement&hellip;"></div>
+                                <input type="hidden" name="lines[0][detailed_description]" />
+                            </div>
                             <div class="line">
                                 <div style="display: flex; align-items: center">
                                     <input
                                         name="lines[0][description]"
-                                        placeholder="Description du produit ou service"
+                                        placeholder="Libell&eacute; du produit ou service"
                                         style="flex: 1"
                                         oninput="updateSubmitButton()"
                                     />
@@ -844,7 +914,7 @@
                     .querySelectorAll(".line-wrapper")
                     .forEach((wrapper, index) => {
                         const description = wrapper
-                            .querySelector('[name*="description"]')
+                            .querySelector('[name$="[description]"]')
                             .value.trim();
                         const quantity =
                             wrapper.querySelector('[name*="quantity"]').value;
@@ -859,7 +929,7 @@
                                 `Ligne ${lineNum} : la description est obligatoire`,
                             );
                             wrapper
-                                .querySelector('[name*="description"]')
+                                .querySelector('[name$="[description]"]')
                                 .classList.add("error");
                         }
                         if (!quantity || parseFloat(quantity) <= 0) {
@@ -900,11 +970,23 @@
 
                 const lineHtml = `
                     <div class="line-wrapper" data-id="${newIndex}">
+                        <div class="rte">
+                            <div class="rte-label">Description détaillée (optionnel)</div>
+                            <div class="rte-toolbar">
+                                <button type="button" class="rte-btn" data-cmd="bold" title="Gras"><b>B</b></button>
+                                <button type="button" class="rte-btn" data-cmd="italic" title="Italique"><i>I</i></button>
+                                <button type="button" class="rte-btn" data-cmd="underline" title="Souligné"><u>U</u></button>
+                                <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Liste à puces">&bull;</button>
+                                <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Liste numérotée">1.</button>
+                            </div>
+                            <div class="rte-editor" contenteditable="true" data-placeholder="Description détaillée : retours à la ligne, listes, gras, soulignement…"></div>
+                            <input type="hidden" name="lines[${newIndex}][detailed_description]" />
+                        </div>
                         <div class="line">
                             <div style="display: flex; align-items: center;">
                                 <input
                                     name="lines[${newIndex}][description]"
-                                    placeholder="Description du produit ou service"
+                                    placeholder="Libellé du produit ou service"
                                     style="flex: 1;"
                                     oninput="updateSubmitButton()"
                                 />
@@ -1071,7 +1153,7 @@
             function hasAtLeastOneValidLine() {
                 const wrappers = document.querySelectorAll(".line-wrapper");
                 for (const wrapper of wrappers) {
-                    const desc = (wrapper.querySelector('[name*="description"]').value || "").trim();
+                    const desc = (wrapper.querySelector('[name$="[description]"]').value || "").trim();
                     const qty = parseFloat(wrapper.querySelector('[name*="quantity"]').value) || 0;
                     const price = parseFloat(wrapper.querySelector('[name*="unit_price_ht"]').value) || 0;
                     if (desc && qty > 0 && price > 0) return true;
@@ -1214,9 +1296,46 @@
                 container.style.display = "block";
             }
 
+            // ----- Éditeur de description détaillée (rich text) -----
+            function syncRte(rte) {
+                if (!rte) return;
+                const editor = rte.querySelector(".rte-editor");
+                const hidden = rte.querySelector('input[type="hidden"]');
+                if (!editor || !hidden) return;
+                let html = editor.innerHTML.trim();
+                // Neutraliser le contenu "vide" produit par contenteditable
+                if (html === "<br>" || html === "<div><br></div>" || html === "<div></div>") {
+                    html = "";
+                }
+                hidden.value = html;
+            }
+
+            function syncAllRte() {
+                document.querySelectorAll(".rte").forEach(syncRte);
+            }
+
+            // Barre d'outils : mousedown pour préserver la sélection dans l'éditeur
+            document.addEventListener("mousedown", (e) => {
+                const btn = e.target.closest(".rte-btn");
+                if (!btn) return;
+                e.preventDefault();
+                try {
+                    document.execCommand("styleWithCSS", false, false);
+                } catch (err) {}
+                document.execCommand(btn.dataset.cmd, false, null);
+                syncRte(btn.closest(".rte"));
+            });
+
+            // Frappe / collage dans l'éditeur : synchro du champ caché
+            document.addEventListener("input", (e) => {
+                const editor = e.target.closest(".rte-editor");
+                if (editor) syncRte(editor.closest(".rte"));
+            });
+
             document.getElementById("invoiceForm").onsubmit = async (e) => {
                 e.preventDefault();
                 clearErrors();
+                syncAllRte();
 
                 const formData = new FormData(e.target);
 

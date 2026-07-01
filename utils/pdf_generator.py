@@ -7,8 +7,10 @@ en PDF Factur-X avec le module factur-x.
 
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
+from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path
+from xml.sax.saxutils import escape as _xml_escape
 
 from utils.invoice_calc import calculate_line_totals, calculate_invoice_totals
 
@@ -40,6 +42,78 @@ from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
 
 # Chemin du profil ICC sRGB pour conformité PDF/A-3
 _ICC_PROFILE_PATH = Path(__file__).parent.parent / 'resources' / 'profiles' / 'sRGB.icc'
+
+
+class _EditorHtmlToRL(HTMLParser):
+    """Convertit le HTML de l'éditeur en balisage compatible ReportLab Paragraph.
+
+    Balises inline conservées : b/strong -> b, i/em -> i, u -> u.
+    br/div/p -> retour à la ligne. ul/ol/li -> puces « • » ou numéros « n. ».
+    Tout le reste est ignoré ; le texte est échappé pour le mini-XML de ReportLab.
+    """
+
+    _INLINE = {'b': 'b', 'strong': 'b', 'i': 'i', 'em': 'i', 'u': 'u'}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self._lists = []  # pile de [type ('ul'|'ol'), compteur]
+
+    def _newline(self):
+        if self.parts and self.parts[-1] != '<br/>':
+            self.parts.append('<br/>')
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag in self._INLINE:
+            self.parts.append('<%s>' % self._INLINE[tag])
+        elif tag == 'br':
+            self.parts.append('<br/>')
+        elif tag in ('ul', 'ol'):
+            self._lists.append([tag, 0])
+        elif tag == 'li':
+            self._newline()
+            if self._lists:
+                lst = self._lists[-1]
+                if lst[0] == 'ol':
+                    lst[1] += 1
+                    self.parts.append('%d. ' % lst[1])
+                else:
+                    self.parts.append('• ')
+        elif tag in ('div', 'p'):
+            self._newline()
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in self._INLINE:
+            self.parts.append('</%s>' % self._INLINE[tag])
+        elif tag in ('ul', 'ol'):
+            if self._lists:
+                self._lists.pop()
+
+    def handle_data(self, data):
+        self.parts.append(_xml_escape(data))
+
+    def result(self) -> str:
+        html = ''.join(self.parts)
+        while html.startswith('<br/>'):
+            html = html[len('<br/>'):]
+        while html.endswith('<br/>'):
+            html = html[:-len('<br/>')]
+        return html.strip()
+
+
+def _detailed_description_markup(html: str) -> str:
+    """Retourne un balisage ReportLab sûr pour une description détaillée, ou ''."""
+    if not html or not html.strip():
+        return ''
+    parser = _EditorHtmlToRL()
+    try:
+        parser.feed(html)
+        parser.close()
+    except Exception:
+        return ''
+    return parser.result()
 
 
 def _format_amount(value) -> str:
@@ -228,7 +302,13 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
     story.append(Spacer(1, 0.7*cm))
 
     # Lignes de facture
-    line_data = [['Description', 'Qté', 'P.U. HT', 'TVA %', 'Total HT']]
+    line_data = [['Libellé', 'Qté', 'P.U. HT', 'TVA %', 'Total HT']]
+
+    label_style = ParagraphStyle('LineLabel', parent=normal_style, fontName='LiberationSans-Bold')
+    detail_style = ParagraphStyle(
+        'LineDetail', parent=normal_style, fontSize=7.5,
+        textColor=colors.HexColor('#555555'), leading=10, spaceBefore=2,
+    )
 
     for line in lines:
         totals = _calculate_line_totals(line)
@@ -236,8 +316,18 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
         vat_label = _format_amount(totals['vat_rate'])
         if totals['vat_category'] != 'S':
             vat_label = f"{vat_label} ({totals['vat_category']})"
+
+        # Cellule libellé (gras) + description détaillée formatée (optionnelle)
+        desc_cell = [Paragraph(_xml_escape(line.get('description', '') or ''), label_style)]
+        detail_markup = _detailed_description_markup(line.get('detailed_description', ''))
+        if detail_markup:
+            try:
+                desc_cell.append(Paragraph(detail_markup, detail_style))
+            except Exception:
+                pass
+
         line_data.append([
-            Paragraph(line['description'], normal_style),
+            desc_cell,
             _format_amount(totals['quantity']),
             _format_amount(totals['unit_price']) + ' €',
             vat_label,

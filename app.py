@@ -527,6 +527,7 @@ def parse_lines_from_form(form_data) -> list[dict]:
     for idx in sorted(line_indices):
         line = {
             'description': form_data.get(f'lines[{idx}][description]', ''),
+            'detailed_description': form_data.get(f'lines[{idx}][detailed_description]', ''),
             'quantity': form_data.get(f'lines[{idx}][quantity]', ''),
             'unit_price_ht': form_data.get(f'lines[{idx}][unit_price_ht]', ''),
             'vat_rate': form_data.get(f'lines[{idx}][vat_rate]', '20'),
