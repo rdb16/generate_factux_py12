@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS sent_invoices (
     invoice_num     VARCHAR(50)              PRIMARY KEY,
     company_name    VARCHAR(255)             NOT NULL,
     company_siret   VARCHAR(14)              NOT NULL,
+    emitter_siret   VARCHAR(14)              DEFAULT NULL,
     xml_facture     XML                      NOT NULL,
     pdf_path        VARCHAR(500)             NOT NULL,
     invoice_date    DATE                     NOT NULL,
@@ -34,6 +35,9 @@ CREATE INDEX IF NOT EXISTS idx_sent_invoices_company_name
 
 CREATE INDEX IF NOT EXISTS idx_sent_invoices_company_siret
     ON sent_invoices (company_siret);
+
+CREATE INDEX IF NOT EXISTS idx_sent_invoices_emitter_siret
+    ON sent_invoices (emitter_siret);
 
 CREATE INDEX IF NOT EXISTS idx_sent_invoices_invoice_date
     ON sent_invoices (invoice_date);

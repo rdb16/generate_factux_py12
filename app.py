@@ -223,14 +223,14 @@ def get_next_invoice_number(conn) -> str:
 
 def insert_sent_invoice(conn, invoice_num: str, company_name: str, company_siret: str,
                         xml_content: str, pdf_path: str, invoice_date: str,
-                        total_ttc=None) -> None:
+                        total_ttc=None, emitter_siret: str = None) -> None:
     """Insère la facture dans sent_invoices (dans la transaction en cours)."""
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO sent_invoices
-           (invoice_num, company_name, company_siret, xml_facture, pdf_path, invoice_date, total_ttc)
-           VALUES (%s, %s, %s, %s::xml, %s, %s, %s)""",
-        (invoice_num, company_name, company_siret, xml_content, pdf_path, invoice_date, total_ttc),
+           (invoice_num, company_name, company_siret, emitter_siret, xml_facture, pdf_path, invoice_date, total_ttc)
+           VALUES (%s, %s, %s, %s, %s::xml, %s, %s, %s)""",
+        (invoice_num, company_name, company_siret, emitter_siret, xml_content, pdf_path, invoice_date, total_ttc),
     )
     cursor.close()
 
@@ -809,23 +809,37 @@ def dashboard_stats():
     if CONFIG.get('is_db_pg') is not True:
         return jsonify({'error': 'Base de données non activée'}), 404
 
+    emitter_siret = current_emitter()['siret']
+
     stats = {'generated': 0, 'transferred': 0, 'received': 0, 'error': 0}
     try:
         with db_cursor() as (_conn, cursor):
-            cursor.execute("SELECT COUNT(*) FROM sent_invoices")
+            cursor.execute(
+                "SELECT COUNT(*) FROM sent_invoices WHERE emitter_siret = %s",
+                (emitter_siret,),
+            )
             stats['generated'] = cursor.fetchone()[0]
 
-            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE sent_status = 'SENT-OK'")
+            cursor.execute(
+                "SELECT COUNT(*) FROM sent_invoices WHERE emitter_siret = %s AND sent_status = 'SENT-OK'",
+                (emitter_siret,),
+            )
             stats['transferred'] = cursor.fetchone()[0]
 
-            cursor.execute("SELECT COUNT(*) FROM sent_invoices WHERE sent_status = 'SENT-ERROR'")
+            cursor.execute(
+                "SELECT COUNT(*) FROM sent_invoices WHERE emitter_siret = %s AND sent_status = 'SENT-ERROR'",
+                (emitter_siret,),
+            )
             stats['error'] = cursor.fetchone()[0]
     except Exception as e:
         print(f"[ERROR] Stats sent_invoices: {e}")
 
     try:
         with db_cursor() as (_conn, cursor):
-            cursor.execute("SELECT COUNT(*) FROM incoming_invoices")
+            cursor.execute(
+                "SELECT COUNT(*) FROM incoming_invoices WHERE recipient_siret = %s",
+                (emitter_siret,),
+            )
             stats['received'] = cursor.fetchone()[0]
     except Exception as e:
         print(f"[WARNING] Stats incoming_invoices: {e}")
@@ -847,63 +861,39 @@ def dashboard_invoices():
     offset = (page - 1) * per_page
 
     has_dates = bool(date_from and date_to)
+    emitter_siret = current_emitter()['siret']
+
+    # Filtre émetteur (toujours présent) + filtre dates optionnel
+    if tab == 'received':
+        table, order_col = 'incoming_invoices', 'received_at'
+        select_cols = 'invoice_num, company_name, invoice_date, total_ttc'
+        where = 'recipient_siret = %s'
+    else:
+        table, order_col = 'sent_invoices', 'created_at'
+        select_cols = 'invoice_num, company_name, invoice_date, total_ttc, sent_status, pa_validation'
+        where = 'emitter_siret = %s'
+
+    where_params = [emitter_siret]
+    if has_dates:
+        where += ' AND invoice_date >= %s AND invoice_date <= %s'
+        where_params.extend([date_from, date_to])
 
     try:
         with db_cursor() as (_conn, cursor):
-            if tab == 'received':
-                if has_dates:
-                    cursor.execute(
-                        "SELECT COUNT(*) FROM incoming_invoices WHERE invoice_date >= %s AND invoice_date <= %s",
-                        (date_from, date_to),
-                    )
-                else:
-                    cursor.execute("SELECT COUNT(*) FROM incoming_invoices")
-                total = cursor.fetchone()[0]
+            cursor.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE {where}",
+                tuple(where_params),
+            )
+            total = cursor.fetchone()[0]
 
-                if has_dates:
-                    cursor.execute(
-                        """SELECT invoice_num, company_name, invoice_date, total_ttc
-                           FROM incoming_invoices
-                           WHERE invoice_date >= %s AND invoice_date <= %s
-                           ORDER BY received_at DESC
-                           LIMIT %s OFFSET %s""",
-                        (date_from, date_to, per_page, offset),
-                    )
-                else:
-                    cursor.execute(
-                        """SELECT invoice_num, company_name, invoice_date, total_ttc
-                           FROM incoming_invoices
-                           ORDER BY received_at DESC
-                           LIMIT %s OFFSET %s""",
-                        (per_page, offset),
-                    )
-            else:
-                if has_dates:
-                    cursor.execute(
-                        "SELECT COUNT(*) FROM sent_invoices WHERE invoice_date >= %s AND invoice_date <= %s",
-                        (date_from, date_to),
-                    )
-                else:
-                    cursor.execute("SELECT COUNT(*) FROM sent_invoices")
-                total = cursor.fetchone()[0]
-
-                if has_dates:
-                    cursor.execute(
-                        """SELECT invoice_num, company_name, invoice_date, total_ttc, sent_status, pa_validation
-                           FROM sent_invoices
-                           WHERE invoice_date >= %s AND invoice_date <= %s
-                           ORDER BY created_at DESC
-                           LIMIT %s OFFSET %s""",
-                        (date_from, date_to, per_page, offset),
-                    )
-                else:
-                    cursor.execute(
-                        """SELECT invoice_num, company_name, invoice_date, total_ttc, sent_status, pa_validation
-                           FROM sent_invoices
-                           ORDER BY created_at DESC
-                           LIMIT %s OFFSET %s""",
-                        (per_page, offset),
-                    )
+            cursor.execute(
+                f"""SELECT {select_cols}
+                    FROM {table}
+                    WHERE {where}
+                    ORDER BY {order_col} DESC
+                    LIMIT %s OFFSET %s""",
+                tuple(where_params) + (per_page, offset),
+            )
 
             columns = [desc[0] for desc in cursor.description]
             rows = cursor.fetchall()
@@ -1122,6 +1112,7 @@ def generate_invoice():
                         pdf_path=pdf_filepath,
                         invoice_date=invoice_data['issue_date'],
                         total_ttc=total_ttc_value,
+                        emitter_siret=emitter['siret'],
                     )
                     conn.commit()
                     print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
@@ -1172,6 +1163,7 @@ def generate_invoice():
                         pdf_path=pdf_filepath,
                         invoice_date=invoice_data['issue_date'],
                         total_ttc=total_ttc_value,
+                        emitter_siret=emitter['siret'],
                     )
                 print(f"[OK] Facture {invoice_data['invoice_number']} insérée en base")
                 db_status = 'ok'
