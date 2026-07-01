@@ -1278,13 +1278,16 @@ def send_to_pa():
     if CONFIG.get('is_db_pg') is not True or CONFIG.get('super_pdp_as_pa') is not True:
         return redirect(url_for('dashboard'))
 
+    emitter_siret = current_emitter()['siret']
+
     try:
         with db_cursor() as (_conn, cursor):
             cursor.execute(
                 """SELECT invoice_num, company_name, invoice_date, total_ttc, pdf_path
                    FROM sent_invoices
-                   WHERE sent_status = 'PENDING'
-                   ORDER BY created_at ASC"""
+                   WHERE sent_status = 'PENDING' AND emitter_siret = %s
+                   ORDER BY created_at ASC""",
+                (emitter_siret,),
             )
             columns = [desc[0] for desc in cursor.description]
             rows = cursor.fetchall()
@@ -1319,6 +1322,7 @@ def api_send_to_pa():
         return jsonify({'error': 'Aucune facture sélectionnée'}), 400
 
     invoice_nums = data['invoice_nums']
+    emitter_siret = current_emitter()['siret']
     results = []
 
     # Loguer le token Bearer (tronqué) et sa validité
@@ -1339,8 +1343,8 @@ def api_send_to_pa():
         try:
             with db_cursor() as (_conn, cursor):
                 cursor.execute(
-                    "SELECT pdf_path FROM sent_invoices WHERE invoice_num = %s AND sent_status = 'PENDING'",
-                    (num,),
+                    "SELECT pdf_path FROM sent_invoices WHERE invoice_num = %s AND sent_status = 'PENDING' AND emitter_siret = %s",
+                    (num, emitter_siret),
                 )
                 row = cursor.fetchone()
 
