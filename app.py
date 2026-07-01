@@ -28,7 +28,7 @@ def _log_pa(message: str) -> None:
         f.write(message + '\n')
 
 
-def load_config(config_path: str = 'resources/config/ma-conf.txt') -> dict:
+def load_config(config_path: str = 'resources/config/burgerQueen.conf') -> dict:
     """Charge la configuration depuis un fichier texte."""
     config = {}
     path = Path(config_path)
@@ -331,7 +331,7 @@ def build_emitter(config: dict) -> dict:
 
 
 def discover_emitters(config_dir: str = 'resources/config',
-                      base_id: str = 'ma-conf') -> dict:
+                      base_id: str = 'burgerQueen') -> dict:
     """Découvre les émetteurs sélectionnables (1 fichier de config = 1 émetteur).
 
     Seule l'identité de l'émetteur est propre à chaque fichier ; les réglages
@@ -369,7 +369,7 @@ LOGO_PATH = get_logo_path(CONFIG)
 EMITTERS = discover_emitters()
 
 # Émetteur par défaut : la config de base si présente, sinon le premier trouvé
-DEFAULT_EMITTER_ID = 'ma-conf' if 'ma-conf' in EMITTERS else (
+DEFAULT_EMITTER_ID = 'burgerQueen' if 'burgerQueen' in EMITTERS else (
     next(iter(EMITTERS), None)
 )
 
