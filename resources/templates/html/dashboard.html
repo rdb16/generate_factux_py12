@@ -12,6 +12,44 @@
                 padding: 24px 30px;
             }
 
+            /* Emitter selector card */
+            .emitter-card {
+                background: white;
+                border: 1px solid #e2e8f0;
+                border-left: 3px solid #667eea;
+                border-radius: 8px;
+                padding: 14px 20px;
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                flex-wrap: wrap;
+            }
+            .emitter-card label {
+                font-size: 13px;
+                font-weight: 600;
+                color: #4a5568;
+                white-space: nowrap;
+            }
+            .emitter-card select {
+                padding: 8px 12px;
+                border: 1px solid #cbd5e0;
+                border-radius: 6px;
+                font-size: 14px;
+                color: #1a202c;
+                background: white;
+                min-width: 240px;
+                cursor: pointer;
+            }
+            .emitter-card select:focus {
+                outline: none;
+                border-color: #667eea;
+            }
+            .emitter-card .emitter-hint {
+                font-size: 12px;
+                color: #a0aec0;
+            }
+
             /* DB Status card */
             .db-status-card {
                 background: #f8fafc;
@@ -401,6 +439,17 @@
 
 {% block content %}
             <div class="dashboard">
+                <!-- Sélecteur d'émetteur -->
+                <div class="emitter-card">
+                    <label for="emitterSelect">&Eacute;metteur :</label>
+                    <select id="emitterSelect" onchange="selectEmitter(this.value)">
+                        {% for em in emitters %}
+                        <option value="{{ em.id }}"{% if em.id == current_emitter_id %} selected{% endif %}>{{ em.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <span class="emitter-hint">SIRET {{ emitter.siret }}</span>
+                </div>
+
                 <!-- DB Status -->
                 <div class="db-status-card">
                     <div class="db-status-left">
@@ -528,6 +577,28 @@
             let currentTab = 'sent';
             let currentPage = 1;
             const perPage = 5;
+
+            async function selectEmitter(emitterId) {
+                const sel = document.getElementById('emitterSelect');
+                sel.disabled = true;
+                try {
+                    const resp = await fetch('/api/emitter/select', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ emitter_id: emitterId }),
+                    });
+                    if (resp.ok) {
+                        // Recharger pour refléter l'émetteur (en-tête, logo, SIRET)
+                        window.location.reload();
+                    } else {
+                        sel.disabled = false;
+                        console.error('Sélection émetteur refusée');
+                    }
+                } catch (err) {
+                    sel.disabled = false;
+                    console.error('Erreur sélection émetteur:', err);
+                }
+            }
 
             function escapeHtml(str) {
                 if (str === null || str === undefined) return '';

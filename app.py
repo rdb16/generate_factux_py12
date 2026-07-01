@@ -307,32 +307,98 @@ def validate_startup_config() -> None:
     _log_pa(f"Session ouverte le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} par : {os.getlogin()}, pour le facturier : {CONFIG.get('name', 'N/A')}")
 
 
-# Charger la configuration
+def build_emitter(config: dict) -> dict:
+    """Construit le dict émetteur (identité) depuis une config."""
+    return {
+        'name': config.get('name', ''),
+        'address': config.get('address', ''),
+        'postal_code': config.get('postal_code', ''),
+        'city': config.get('city', ''),
+        'country_code': config.get('country_code', 'FR'),
+        'siren': config.get('siren', ''),
+        'siret': config.get('siret', ''),
+        'vat_number': config.get('num_tva', ''),
+        'bic': config.get('bic', ''),
+        # HTML/PDF uniquement
+        'legal_form': config.get('cie_legal_form', ''),
+        'iban': config.get('cie_IBAN', ''),
+        # XML Factur-X (notes BR-FR-05)
+        'pmt_text': config.get('pmt_text', ''),
+        'pmd_text': config.get('pmd_text', ''),
+        # Identifiant Peppol émetteur (endpoint URIUniversalCommunication)
+        'recipient_pepol': config.get('recipient_pepol', ''),
+    }
+
+
+def discover_emitters(config_dir: str = 'resources/config',
+                      base_id: str = 'ma-conf') -> dict:
+    """Découvre les émetteurs sélectionnables (1 fichier de config = 1 émetteur).
+
+    Seule l'identité de l'émetteur est propre à chaque fichier ; les réglages
+    globaux (DB, Super PDP, numérotation) proviennent de la config de base.
+    """
+    emitters = {}
+    for path in sorted(Path(config_dir).glob('*')):
+        if not path.is_file() or path.suffix not in ('.conf', '.txt'):
+            continue
+        try:
+            cfg = load_config(str(path))
+        except Exception as e:
+            print(f"[WARNING] Config émetteur ignorée ({path.name}): {e}")
+            continue
+        # Ignorer les fichiers vides / sans identité (ex: tricatel.conf vide)
+        if not cfg.get('name', '').strip():
+            continue
+        emitter_id = path.stem
+        emitters[emitter_id] = {
+            'id': emitter_id,
+            'label': cfg.get('name'),
+            'emitter': build_emitter(cfg),
+            'logo_path': get_logo_path(cfg),
+        }
+    return emitters
+
+
+# Charger la configuration de base (réglages globaux : DB, PDP, numérotation)
 CONFIG = load_config()
 
-# Définir le chemin du logo (avec fallback)
+# Définir le chemin du logo par défaut (avec fallback)
 LOGO_PATH = get_logo_path(CONFIG)
 
-# Configuration de l'émetteur depuis le fichier de config
-EMITTER = {
-    'name': CONFIG.get('name', ''),
-    'address': CONFIG.get('address', ''),
-    'postal_code': CONFIG.get('postal_code', ''),
-    'city': CONFIG.get('city', ''),
-    'country_code': CONFIG.get('country_code', 'FR'),
-    'siren': CONFIG.get('siren', ''),
-    'siret': CONFIG.get('siret', ''),
-    'vat_number': CONFIG.get('num_tva', ''),
-    'bic': CONFIG.get('bic', ''),
-    # HTML/PDF uniquement
-    'legal_form': CONFIG.get('cie_legal_form', ''),
-    'iban': CONFIG.get('cie_IBAN', ''),
-    # XML Factur-X (notes BR-FR-05)
-    'pmt_text': CONFIG.get('pmt_text', ''),
-    'pmd_text': CONFIG.get('pmd_text', ''),
-    # Identifiant Peppol émetteur (endpoint URIUniversalCommunication)
-    'recipient_pepol': CONFIG.get('recipient_pepol', ''),
-}
+# Découvrir les émetteurs sélectionnables (identité par fichier de config)
+EMITTERS = discover_emitters()
+
+# Émetteur par défaut : la config de base si présente, sinon le premier trouvé
+DEFAULT_EMITTER_ID = 'ma-conf' if 'ma-conf' in EMITTERS else (
+    next(iter(EMITTERS), None)
+)
+
+# Configuration de l'émetteur par défaut (compat. démarrage / logs)
+EMITTER = build_emitter(CONFIG)
+
+
+def current_emitter_id() -> str:
+    """Retourne l'id de l'émetteur sélectionné en session (ou le défaut)."""
+    eid = session.get('emitter_id')
+    if eid and eid in EMITTERS:
+        return eid
+    return DEFAULT_EMITTER_ID
+
+
+def current_emitter() -> dict:
+    """Retourne le dict identité de l'émetteur courant."""
+    eid = current_emitter_id()
+    if eid and eid in EMITTERS:
+        return EMITTERS[eid]['emitter']
+    return EMITTER
+
+
+def current_logo_path() -> str:
+    """Retourne le chemin logo de l'émetteur courant."""
+    eid = current_emitter_id()
+    if eid and eid in EMITTERS:
+        return EMITTERS[eid]['logo_path']
+    return LOGO_PATH
 
 app = Flask(__name__, template_folder='resources/templates', static_folder='resources', static_url_path='/static')
 app.secret_key = 'facturx-secret-key-change-in-production'
@@ -482,8 +548,8 @@ def format_date_display(date_str: str) -> str:
 
 
 def get_logo_url() -> str:
-    """Retourne l'URL du logo pour les templates."""
-    logo = LOGO_PATH
+    """Retourne l'URL du logo (émetteur courant) pour les templates."""
+    logo = current_logo_path()
     # Flask static_folder='resources', donc les URLs doivent commencer par /static/
     if logo.startswith('./resources/'):
         return '/static/' + logo[len('./resources/'):]
@@ -530,16 +596,36 @@ def dashboard():
             now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             _log_pa(f"[{now_ts}] TOKEN ERROR — {e}")
 
+    emitters_list = [
+        {'id': eid, 'label': data['label']}
+        for eid, data in EMITTERS.items()
+    ]
+
     return render_template(
         'html/dashboard.html',
         logo_path=get_logo_url(),
-        emitter=EMITTER,
+        emitter=current_emitter(),
+        emitters=emitters_list,
+        current_emitter_id=current_emitter_id(),
         db_host=db_host,
         db_name=db_name,
         super_pdp_as_pa=CONFIG.get('super_pdp_as_pa', False),
         pdp_token_validity=pdp_token_validity,
         pdp_token_error=pdp_token_error,
     )
+
+
+@app.route('/api/emitter/select', methods=['POST'])
+def select_emitter():
+    """Enregistre l'émetteur sélectionné en session."""
+    data = request.get_json(silent=True) or {}
+    emitter_id = data.get('emitter_id', '')
+    if emitter_id not in EMITTERS:
+        return jsonify({'success': False, 'error': 'Émetteur inconnu'}), 400
+    session['emitter_id'] = emitter_id
+    print(f"[OK] Émetteur sélectionné : {EMITTERS[emitter_id]['label']} ({emitter_id})")
+    return jsonify({'success': True, 'emitter_id': emitter_id,
+                    'label': EMITTERS[emitter_id]['label']})
 
 
 @app.route('/invoice/step1', methods=['GET'])
@@ -570,7 +656,7 @@ def show_step1():
     return render_template(
         'html/invoice_step1.html',
         logo_path=get_logo_url(),
-        emitter=EMITTER,
+        emitter=current_emitter(),
         next_invoice_number=next_invoice_number,
         auto_numbering=auto_numbering,
         is_db_pg=is_db_pg,
@@ -935,7 +1021,7 @@ def show_step2():
     return render_template(
         'html/invoice_step2.html',
         logo_path=get_logo_url(),
-        emitter=EMITTER,
+        emitter=current_emitter(),
         invoice=invoice,
     )
 
@@ -983,6 +1069,10 @@ def generate_invoice():
     if errors:
         return jsonify({'success': False, 'errors': errors}), 400
 
+    # Émetteur courant (sélectionné sur le dashboard)
+    emitter = current_emitter()
+    emitter_logo = current_logo_path()
+
     try:
         auto_num = is_auto_numbering()
 
@@ -1002,11 +1092,11 @@ def generate_invoice():
 
                     # Génération dans la transaction (le lock empêche les doublons)
                     full_data = {
-                        'emitter': EMITTER,
+                        'emitter': emitter,
                         'invoice': invoice_data,
                         'lines': lines,
                     }
-                    pdf_bytes = generate_invoice_pdf(full_data, logo_path=LOGO_PATH)
+                    pdf_bytes = generate_invoice_pdf(full_data, logo_path=emitter_logo)
                     xml_content = generate_facturx_xml(full_data)
                     facturx_pdf_bytes = generate_from_binary(
                         pdf_file=pdf_bytes,
@@ -1015,7 +1105,7 @@ def generate_invoice():
                         level='en16931',
                         check_xsd=True,
                         pdf_metadata={
-                            'author': EMITTER['name'],
+                            'author': emitter['name'],
                             'title': f"Facture {invoice_data['invoice_number']}",
                             'subject': 'Facture électronique Factur-X',
                         }
@@ -1038,11 +1128,11 @@ def generate_invoice():
             else:
                 # Pas de numérotation auto : génération simple
                 full_data = {
-                    'emitter': EMITTER,
+                    'emitter': emitter,
                     'invoice': invoice_data,
                     'lines': lines,
                 }
-                pdf_bytes = generate_invoice_pdf(full_data, logo_path=LOGO_PATH)
+                pdf_bytes = generate_invoice_pdf(full_data, logo_path=emitter_logo)
                 xml_content = generate_facturx_xml(full_data)
                 facturx_pdf_bytes = generate_from_binary(
                     pdf_file=pdf_bytes,
@@ -1051,7 +1141,7 @@ def generate_invoice():
                     level='en16931',
                     check_xsd=True,
                     pdf_metadata={
-                        'author': EMITTER['name'],
+                        'author': emitter['name'],
                         'title': f"Facture {invoice_data['invoice_number']}",
                         'subject': 'Facture électronique Factur-X',
                     }
@@ -1134,8 +1224,8 @@ def generate_invoice():
             'payment_terms': invoice_data.get('payment_terms', ''),
             'recipient_name': invoice_data['recipient_name'],
             'recipient_siret': invoice_data['recipient_siret'],
-            'emitter_name': EMITTER['name'],
-            'emitter_siret': EMITTER['siret'],
+            'emitter_name': emitter['name'],
+            'emitter_siret': emitter['siret'],
             'lines': summary_lines,
             'total_ht': _fmt(invoice_totals['total_ht']),
             'total_vat': _fmt(invoice_totals['total_vat']),
@@ -1165,7 +1255,7 @@ def show_step3():
     return render_template(
         'html/invoice_step3.html',
         logo_path=get_logo_url(),
-        emitter=EMITTER,
+        emitter=current_emitter(),
         summary=summary,
     )
 
@@ -1221,7 +1311,7 @@ def send_to_pa():
     return render_template(
         'html/send_to_pa.html',
         logo_path=get_logo_url(),
-        emitter=EMITTER,
+        emitter=current_emitter(),
         invoices=invoices,
     )
 
