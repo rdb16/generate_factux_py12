@@ -201,24 +201,29 @@ def is_auto_numbering() -> bool:
 
 
 def get_next_invoice_number(conn) -> str:
-    """Calcule le prochain numéro de facture depuis la base."""
+    """Calcule le prochain numéro de facture, séquencé par mois.
+
+    Le compteur repart à 0001 à chaque nouveau mois ; sinon il prend
+    la plus grande séquence déjà utilisée dans le mois courant + 1.
+    """
     now = datetime.now()
+    prefix = f"FAC-{now.year}-{now.month:02d}-"
 
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT invoice_num FROM sent_invoices ORDER BY created_at DESC LIMIT 1"
+        "SELECT invoice_num FROM sent_invoices WHERE invoice_num LIKE %s",
+        (prefix + '%',),
     )
-    row = cursor.fetchone()
+    rows = cursor.fetchall()
     cursor.close()
 
-    if row is None:
-        return f"FAC-{now.year}-{now.month:02d}-0001"
+    max_seq = 0
+    for (num,) in rows:
+        tail = num.rsplit('-', 1)[-1]
+        if tail.isdigit():
+            max_seq = max(max_seq, int(tail))
 
-    last_number = row[0]
-    last_part = last_number.rsplit('-', 1)[-1]
-    next_int = int(last_part) + 1
-
-    return f"FAC-{now.year}-{now.month:02d}-{next_int:04d}"
+    return f"{prefix}{max_seq + 1:04d}"
 
 
 def insert_sent_invoice(conn, invoice_num: str, company_name: str, company_siret: str,
