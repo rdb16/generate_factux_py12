@@ -26,17 +26,17 @@ def _load_env():
         load_dotenv(env_file, override=True)
 
 
-def _credentials_for(emitter_id: str = None) -> tuple[str, str]:
-    """Retourne (client_id, client_secret) pour un émetteur donné.
+def _credentials_for(env_suffix: str = None) -> tuple[str, str]:
+    """Retourne (client_id, client_secret) pour un compte SuperPDP donné.
 
-    Cherche PDP_SENDER_ID_<EMITTER> / PDP_SENDER_SECRET_<EMITTER> (suffixe =
-    identifiant d'émetteur en majuscules, ex. TRICATEL), sinon retombe sur les
-    variables globales PDP_SENDER_ID / PDP_SENDER_SECRET.
+    Cherche PDP_SENDER_ID_<SUFFIXE> / PDP_SENDER_SECRET_<SUFFIXE> (suffixe
+    déclaré par `pdp_env_suffix` dans la config de l'émetteur, ex. BURGERQ,
+    TRICATEL), sinon retombe sur PDP_SENDER_ID / PDP_SENDER_SECRET.
     """
     _load_env()
 
-    if emitter_id:
-        suffix = emitter_id.upper()
+    if env_suffix:
+        suffix = env_suffix.upper()
         sender_id = os.environ.get(f"PDP_SENDER_ID_{suffix}")
         sender_secret = os.environ.get(f"PDP_SENDER_SECRET_{suffix}")
         if sender_id and sender_secret:
@@ -46,28 +46,29 @@ def _credentials_for(emitter_id: str = None) -> tuple[str, str]:
     sender_secret = os.environ.get("PDP_SENDER_SECRET")
 
     if not sender_id or not sender_secret:
+        wanted = f"PDP_SENDER_ID_{env_suffix.upper()}" if env_suffix else "PDP_SENDER_ID"
         raise EnvironmentError(
-            "PDP_SENDER_ID et PDP_SENDER_SECRET doivent être définis "
+            f"{wanted} et le secret associé doivent être définis "
             "dans .env ou .env.local"
         )
     return sender_id, sender_secret
 
 
-def get_pdp_token(emitter_id: str = None) -> dict:
+def get_pdp_token(env_suffix: str = None) -> dict:
     """
     Récupère un token OAuth2 auprès de l'API SuperPDP.
 
-    Lit les identifiants via _credentials_for(emitter_id),
+    Lit les identifiants via _credentials_for(env_suffix),
     construit et exécute la commande curl, puis retourne la réponse JSON complète.
 
     Returns:
         Dictionnaire JSON : {access_token, expires_in, scope, token_type}.
 
     Raises:
-        EnvironmentError: Si PDP_SENDER_ID ou PDP_SENDER_SECRET manquent.
+        EnvironmentError: Si les identifiants OAuth manquent.
         RuntimeError: Si la commande curl échoue ou si la réponse est invalide.
     """
-    sender_id, sender_secret = _credentials_for(emitter_id)
+    sender_id, sender_secret = _credentials_for(env_suffix)
 
     curl_cmd = [
         "curl", "-s", "-X", "POST",
@@ -118,24 +119,23 @@ def get_pdp_token(emitter_id: str = None) -> dict:
     return response
 
 
-def get_cached_pdp_token(emitter_id: str = None) -> dict:
+def get_cached_pdp_token(env_suffix: str = None) -> dict:
     """
     Retourne un token OAuth2 SuperPDP depuis le cache local ou via l'API.
 
-    Lit le fichier cache `.pdp_token_cache.json` à la racine du projet
-    (`.pdp_token_cache-<emitter_id>.json` si des identifiants dédiés à
-    l'émetteur existent). Si le token est encore valide (avec une marge de
-    60 s), il est retourné directement sans appel réseau. Sinon, un nouveau
-    token est demandé via `get_pdp_token()` et le cache est mis à jour.
+    Lit le fichier cache `.pdp_token_cache-<suffixe>.json` à la racine du
+    projet (`.pdp_token_cache.json` pour les identifiants globaux). Si le
+    token est encore valide (avec une marge de 60 s), il est retourné
+    directement sans appel réseau. Sinon, un nouveau token est demandé via
+    `get_pdp_token()` et le cache est mis à jour.
 
     Returns:
         Dictionnaire JSON : {access_token, expires_in, token_type, fetched_at}.
     """
     _load_env()
-    if emitter_id and os.environ.get(f"PDP_SENDER_ID_{emitter_id.upper()}"):
-        cache_path = _PROJECT_ROOT / f".pdp_token_cache-{emitter_id}.json"
+    if env_suffix and os.environ.get(f"PDP_SENDER_ID_{env_suffix.upper()}"):
+        cache_path = _PROJECT_ROOT / f".pdp_token_cache-{env_suffix.lower()}.json"
     else:
-        emitter_id = None
         cache_path = _TOKEN_CACHE_PATH
 
     if cache_path.exists():
@@ -148,7 +148,7 @@ def get_cached_pdp_token(emitter_id: str = None) -> dict:
         except (json.JSONDecodeError, OSError):
             pass
 
-    token_data = get_pdp_token(emitter_id)
+    token_data = get_pdp_token(env_suffix)
     token_data["fetched_at"] = time.time()
     cache_path.write_text(
         json.dumps(token_data, indent=2), encoding="utf-8"
@@ -156,7 +156,7 @@ def get_cached_pdp_token(emitter_id: str = None) -> dict:
     return token_data
 
 
-def send_facturx_to_pdp(pdf_path: str) -> dict:
+def send_facturx_to_pdp(pdf_path: str, env_suffix: str = None) -> dict:
     """
     Envoie un PDF Factur-X à l'API SuperPDP.
 
@@ -174,7 +174,7 @@ def send_facturx_to_pdp(pdf_path: str) -> dict:
     if not pdf.exists():
         raise FileNotFoundError(f"Fichier PDF introuvable : {pdf_path}")
 
-    token_data = get_cached_pdp_token()
+    token_data = get_cached_pdp_token(env_suffix)
     access_token = token_data["access_token"]
 
     curl_cmd = [
@@ -311,13 +311,13 @@ def check_pdp_token(token: str) -> dict:
     return response
 
 
-def get_invoice_events(invoice_id: int, emitter_id: str = None) -> dict:
+def get_invoice_events(invoice_id: int, env_suffix: str = None) -> dict:
     """
     Récupère les infos et événements d'une facture via l'API SuperPDP.
 
     Args:
         invoice_id: ID de la facture chez SuperPDP (pa_id).
-        emitter_id: Identifiant d'émetteur pour ses identifiants OAuth dédiés.
+        env_suffix: Suffixe d'identifiants OAuth dédiés.
 
     Returns:
         Dictionnaire JSON de la réponse API (infos facture + événements).
@@ -325,7 +325,7 @@ def get_invoice_events(invoice_id: int, emitter_id: str = None) -> dict:
     Raises:
         RuntimeError: Si l'API retourne une erreur HTTP.
     """
-    token_data = get_cached_pdp_token(emitter_id)
+    token_data = get_cached_pdp_token(env_suffix)
     access_token = token_data["access_token"]
 
     result = subprocess.run(
@@ -345,7 +345,7 @@ def get_invoice_events(invoice_id: int, emitter_id: str = None) -> dict:
     return data
 
 
-def list_incoming_invoices(emitter_id: str = None) -> list[dict]:
+def list_incoming_invoices(env_suffix: str = None) -> list[dict]:
     """
     Liste les factures reçues (direction=in) via l'API SuperPDP.
 
@@ -353,8 +353,8 @@ def list_incoming_invoices(emitter_id: str = None) -> list[dict]:
     tant que la réponse indique `has_after`.
 
     Args:
-        emitter_id: Identifiant d'émetteur pour utiliser ses identifiants
-            OAuth dédiés (PDP_SENDER_ID_<EMITTER>), sinon les globaux.
+        env_suffix: Suffixe d'identifiants OAuth dédiés
+            (PDP_SENDER_ID_<SUFFIXE>), sinon les globaux.
 
     Returns:
         Liste des factures (invoice_overview) : id, direction, created_at,
@@ -363,7 +363,7 @@ def list_incoming_invoices(emitter_id: str = None) -> list[dict]:
     Raises:
         RuntimeError: Si curl échoue ou si la réponse est invalide.
     """
-    token_data = get_cached_pdp_token(emitter_id)
+    token_data = get_cached_pdp_token(env_suffix)
     access_token = token_data["access_token"]
 
     invoices = []
@@ -411,7 +411,7 @@ def list_incoming_invoices(emitter_id: str = None) -> list[dict]:
 
 
 def download_invoice_file(invoice_id: int, fmt: str, dest_path: str,
-                          emitter_id: str = None) -> None:
+                          env_suffix: str = None) -> None:
     """
     Télécharge le fichier d'une facture SuperPDP dans un format donné.
 
@@ -419,12 +419,12 @@ def download_invoice_file(invoice_id: int, fmt: str, dest_path: str,
         invoice_id: ID de la facture chez SuperPDP.
         fmt: Format demandé (`factur-x` pour le PDF, `cii` pour le XML).
         dest_path: Chemin du fichier de destination.
-        emitter_id: Identifiant d'émetteur pour ses identifiants OAuth dédiés.
+        env_suffix: Suffixe d'identifiants OAuth dédiés.
 
     Raises:
         RuntimeError: Si curl échoue ou si l'API retourne une erreur JSON.
     """
-    token_data = get_cached_pdp_token(emitter_id)
+    token_data = get_cached_pdp_token(env_suffix)
     access_token = token_data["access_token"]
 
     result = subprocess.run(

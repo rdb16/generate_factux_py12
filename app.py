@@ -353,6 +353,8 @@ def build_emitter(config: dict) -> dict:
         'pmd_text': config.get('pmd_text', ''),
         # Identifiant Peppol émetteur (endpoint URIUniversalCommunication)
         'recipient_pepol': config.get('recipient_pepol', ''),
+        # Suffixe des identifiants OAuth SuperPDP (PDP_SENDER_ID_<SUFFIXE>)
+        'pdp_env_suffix': config.get('pdp_env_suffix', ''),
     }
 
 
@@ -401,6 +403,16 @@ DEFAULT_EMITTER_ID = 'burgerQueen' if 'burgerQueen' in EMITTERS else (
 
 # Configuration de l'émetteur par défaut (compat. démarrage / logs)
 EMITTER = build_emitter(CONFIG)
+
+
+def current_pdp_suffix() -> str:
+    """Suffixe des identifiants OAuth SuperPDP de l'émetteur courant.
+
+    Déclaré par `pdp_env_suffix` dans la config de l'émetteur,
+    sinon identifiant d'émetteur en majuscules.
+    """
+    emitter = current_emitter()
+    return emitter.get('pdp_env_suffix') or current_emitter_id().upper()
 
 
 def current_emitter_id() -> str:
@@ -609,7 +621,7 @@ def dashboard():
 
     if CONFIG.get('super_pdp_as_pa') is True:
         try:
-            token_response = get_pdp_token()
+            token_response = get_pdp_token(current_pdp_suffix())
             session['OAUTH_TOKEN'] = token_response['access_token']
             expires_in = token_response.get('expires_in', 0)
             expiry_time = datetime.now() + timedelta(seconds=int(expires_in))
@@ -956,11 +968,14 @@ def check_validations():
     if CONFIG.get('is_db_pg') is not True or CONFIG.get('super_pdp_as_pa') is not True:
         return jsonify({'error': 'Fonctionnalité non activée'}), 403
 
+    pdp_suffix = current_pdp_suffix()
     try:
         with db_cursor() as (_conn, cursor):
             cursor.execute(
                 "SELECT invoice_num, pa_id FROM sent_invoices "
-                "WHERE sent_status = 'SENT-OK' AND pa_id IS NOT NULL AND pa_validation IS NULL"
+                "WHERE sent_status = 'SENT-OK' AND pa_id IS NOT NULL AND pa_validation IS NULL "
+                "AND emitter_siret = %s",
+                (current_emitter()['siret'],),
             )
             rows = cursor.fetchall()
     except Exception as e:
@@ -977,7 +992,7 @@ def check_validations():
 
     for invoice_num, pa_id in rows:
         try:
-            data = get_invoice_events(pa_id)
+            data = get_invoice_events(pa_id, pdp_suffix)
             events = data.get('events', [])
             validated = check_validation(events)
             update_pa_validation(invoice_num, validated)
@@ -1041,15 +1056,15 @@ def fetch_incoming_invoices():
         print(f"[ERROR] fetch-invoices SELECT: {e}")
         return jsonify({'error': str(e)}), 500
 
-    emitter_id = current_emitter_id()
+    pdp_suffix = current_pdp_suffix()
     try:
-        overviews = list_incoming_invoices(emitter_id)
+        overviews = list_incoming_invoices(pdp_suffix)
     except Exception as e:
         print(f"[ERROR] fetch-invoices LIST: {e}")
         return jsonify({'error': str(e)}), 502
 
     now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    _log_pa(f"[{now_ts}] FETCH-INVOICES ({emitter_id}) — {len(overviews)} facture(s) reçue(s) chez SuperPDP")
+    _log_pa(f"[{now_ts}] FETCH-INVOICES ({current_emitter_id()}) — {len(overviews)} facture(s) reçue(s) chez SuperPDP")
 
     incoming_storage = Path(CONFIG.get('incoming_storage', './data/incoming-invoices'))
     incoming_storage.mkdir(parents=True, exist_ok=True)
@@ -1066,7 +1081,7 @@ def fetch_incoming_invoices():
             continue
 
         try:
-            detail = get_invoice_events(pa_id, emitter_id)
+            detail = get_invoice_events(pa_id, pdp_suffix)
             en_invoice = detail.get('en_invoice') or {}
             number = en_invoice.get('number') or number
             if not number:
@@ -1089,8 +1104,8 @@ def fetch_incoming_invoices():
             pdf_path = incoming_storage / f"facture-{safe_num}.pdf"
             xml_path = incoming_storage / f"facturx-{safe_num}.xml"
 
-            download_invoice_file(pa_id, 'factur-x', str(pdf_path), emitter_id)
-            download_invoice_file(pa_id, 'cii', str(xml_path), emitter_id)
+            download_invoice_file(pa_id, 'factur-x', str(pdf_path), pdp_suffix)
+            download_invoice_file(pa_id, 'cii', str(xml_path), pdp_suffix)
             xml_content = xml_path.read_text(encoding='utf-8')
 
             with db_connection() as conn:
@@ -1472,9 +1487,10 @@ def api_send_to_pa():
     emitter_siret = current_emitter()['siret']
     results = []
 
+    pdp_suffix = current_pdp_suffix()
     # Loguer le token Bearer (tronqué) et sa validité
     try:
-        token_data = get_cached_pdp_token()
+        token_data = get_cached_pdp_token(pdp_suffix)
         token_short = token_data['access_token'][-6:]
         fetched_at = token_data.get('fetched_at', 0)
         expires_in = token_data.get('expires_in', 0)
@@ -1502,7 +1518,7 @@ def api_send_to_pa():
             pdf_path = row[0]
             now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             _log_pa(f"[{now_ts}] ENVOI {num}")
-            response = send_facturx_to_pdp(pdf_path)
+            response = send_facturx_to_pdp(pdf_path, pdp_suffix)
             now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             _log_pa(f"[{now_ts}] REPONSE {json.dumps(response, ensure_ascii=False)}")
 
