@@ -97,11 +97,11 @@ def _add_tax_registration(parent, vat_number: str):
 
 
 def _validate_pepol(value: str) -> None:
-    """Valide qu'un identifiant Peppol fait 14 caractères (chiffres ou _)."""
-    if not re.match(r'^[\d_]{14}$', value):
+    """Valide qu'un identifiant Peppol fait 9 à 32 caractères (chiffres ou _)."""
+    if not re.match(r'^[\d_]{9,32}$', value):
         raise ValueError(
             f"Identifiant Peppol invalide : '{value}' "
-            f"(attendu : exactement 14 caractères, chiffres ou _)"
+            f"(attendu : 9 à 32 caractères, chiffres ou _)"
         )
 
 
