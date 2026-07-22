@@ -150,6 +150,11 @@ def generate_facturx_xml(data: dict) -> str:
     # === ExchangedDocumentContext ===
     context = ET.SubElement(root, _qname('rsm', 'ExchangedDocumentContext'))
 
+    # Mode de facturation (BT-23, BR-FR-08) : B1 = dépôt facture cas général B2B
+    business_process = ET.SubElement(context, _qname('ram', 'BusinessProcessSpecifiedDocumentContextParameter'))
+    business_process_id = ET.SubElement(business_process, _qname('ram', 'ID'))
+    business_process_id.text = invoice.get('business_process', 'B1')
+
     guideline = ET.SubElement(context, _qname('ram', 'GuidelineSpecifiedDocumentContextParameter'))
     guideline_id = ET.SubElement(guideline, _qname('ram', 'ID'))
     guideline_id.text = 'urn:cen.eu:en16931:2017'
