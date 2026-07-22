@@ -16,7 +16,7 @@ facturx.xml
 facturx.pdf
 
 # PDP token cache
-.pdp_token_cache.json
+.pdp_token_cache*.json
 
 # Log files
 log/

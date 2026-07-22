@@ -1041,14 +1041,15 @@ def fetch_incoming_invoices():
         print(f"[ERROR] fetch-invoices SELECT: {e}")
         return jsonify({'error': str(e)}), 500
 
+    emitter_id = current_emitter_id()
     try:
-        overviews = list_incoming_invoices()
+        overviews = list_incoming_invoices(emitter_id)
     except Exception as e:
         print(f"[ERROR] fetch-invoices LIST: {e}")
         return jsonify({'error': str(e)}), 502
 
     now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    _log_pa(f"[{now_ts}] FETCH-INVOICES — {len(overviews)} facture(s) reçue(s) chez SuperPDP")
+    _log_pa(f"[{now_ts}] FETCH-INVOICES ({emitter_id}) — {len(overviews)} facture(s) reçue(s) chez SuperPDP")
 
     incoming_storage = Path(CONFIG.get('incoming_storage', './data/incoming-invoices'))
     incoming_storage.mkdir(parents=True, exist_ok=True)
@@ -1065,7 +1066,7 @@ def fetch_incoming_invoices():
             continue
 
         try:
-            detail = get_invoice_events(pa_id)
+            detail = get_invoice_events(pa_id, emitter_id)
             en_invoice = detail.get('en_invoice') or {}
             number = en_invoice.get('number') or number
             if not number:
@@ -1088,8 +1089,8 @@ def fetch_incoming_invoices():
             pdf_path = incoming_storage / f"facture-{safe_num}.pdf"
             xml_path = incoming_storage / f"facturx-{safe_num}.xml"
 
-            download_invoice_file(pa_id, 'factur-x', str(pdf_path))
-            download_invoice_file(pa_id, 'cii', str(xml_path))
+            download_invoice_file(pa_id, 'factur-x', str(pdf_path), emitter_id)
+            download_invoice_file(pa_id, 'cii', str(xml_path), emitter_id)
             xml_content = xml_path.read_text(encoding='utf-8')
 
             with db_connection() as conn:
