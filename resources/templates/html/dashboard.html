@@ -557,14 +557,17 @@
                     <button class="btn-action green" onclick="checkValidations()" id="btnCheckValidations">
                         V&eacute;rifier validations
                     </button>
+                    <button class="btn-action green" onclick="fetchInvoices()" id="btnFetchInvoices">
+                        R&eacute;cup&eacute;rer des factures
+                    </button>
                     {% else %}
                     <button class="btn-action" disabled title="Fonctionnalit&eacute; &agrave; venir">
                         Envoyer vers PA
                     </button>
-                    {% endif %}
                     <button class="btn-action" disabled title="Fonctionnalit&eacute; &agrave; venir">
                         R&eacute;cup&eacute;rer des factures
                     </button>
+                    {% endif %}
                     <button class="btn-action danger" onclick="shutdownServer()" style="margin-left: auto;">
                         Terminer la session
                     </button>
@@ -810,6 +813,35 @@
                     if (btn) {
                         btn.disabled = false;
                         btn.textContent = 'V\u00e9rifier validations';
+                    }
+                }
+            }
+
+            async function fetchInvoices() {
+                const btn = document.getElementById('btnFetchInvoices');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Récupération...';
+                }
+                try {
+                    const resp = await fetch('/api/dashboard/fetch-invoices', { method: 'POST' });
+                    const data = await resp.json();
+                    if (data.error) {
+                        console.error('Erreur récupération factures:', data.error);
+                        return;
+                    }
+                    console.log('Factures récupérées :', data.fetched,
+                        '| insérées :', data.inserted,
+                        '| ignorées :', data.skipped,
+                        '| erreurs :', data.errors);
+                    loadStats();
+                    switchTab('received');
+                } catch (err) {
+                    console.error('Erreur récupération factures:', err);
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = 'Récupérer des factures';
                     }
                 }
             }
