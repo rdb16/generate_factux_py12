@@ -318,6 +318,111 @@ def get_invoice_events(invoice_id: int) -> dict:
     return data
 
 
+def list_incoming_invoices() -> list[dict]:
+    """
+    Liste les factures reçues (direction=in) via l'API SuperPDP.
+
+    Parcourt toutes les pages (paramètres `limit` et `starting_after_id`)
+    tant que la réponse indique `has_after`.
+
+    Returns:
+        Liste des factures (invoice_overview) : id, direction, created_at,
+        en_invoice {number, issue_date, ...}.
+
+    Raises:
+        RuntimeError: Si curl échoue ou si la réponse est invalide.
+    """
+    token_data = get_cached_pdp_token()
+    access_token = token_data["access_token"]
+
+    invoices = []
+    starting_after_id = None
+
+    while True:
+        url = "https://api.superpdp.tech/v1.beta/invoices?direction=in&limit=100"
+        if starting_after_id is not None:
+            url += f"&starting_after_id={starting_after_id}"
+
+        result = subprocess.run(
+            [
+                "curl", "-s",
+                "-H", f"Authorization: Bearer {access_token}",
+                url,
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Erreur curl (code {result.returncode}): {result.stderr.strip()}"
+            )
+
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            raise RuntimeError(
+                f"Réponse invalide de l'API SuperPDP: {result.stdout[:200]}"
+            )
+
+        if data.get("http_status_code", 200) != 200:
+            raise RuntimeError(
+                f"HTTP {data.get('http_status_code')} — {result.stdout[:200]}"
+            )
+
+        page = data.get("data", [])
+        invoices.extend(page)
+
+        if not data.get("has_after") or not page:
+            break
+        starting_after_id = page[-1]["id"]
+
+    return invoices
+
+
+def download_invoice_file(invoice_id: int, fmt: str, dest_path: str) -> None:
+    """
+    Télécharge le fichier d'une facture SuperPDP dans un format donné.
+
+    Args:
+        invoice_id: ID de la facture chez SuperPDP.
+        fmt: Format demandé (`factur-x` pour le PDF, `cii` pour le XML).
+        dest_path: Chemin du fichier de destination.
+
+    Raises:
+        RuntimeError: Si curl échoue ou si l'API retourne une erreur JSON.
+    """
+    token_data = get_cached_pdp_token()
+    access_token = token_data["access_token"]
+
+    result = subprocess.run(
+        [
+            "curl", "-s", "-o", str(dest_path),
+            "-H", f"Authorization: Bearer {access_token}",
+            f"https://api.superpdp.tech/v1.beta/invoices/{invoice_id}?format={fmt}",
+        ],
+        capture_output=True, text=True, timeout=30,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Erreur curl (code {result.returncode}): {result.stderr.strip()}"
+        )
+
+    dest = Path(dest_path)
+    if not dest.exists() or dest.stat().st_size == 0:
+        raise RuntimeError(f"Fichier téléchargé vide ou absent : {dest_path}")
+
+    # Une erreur API renvoie un corps JSON au lieu du PDF/XML attendu
+    with open(dest, "rb") as f:
+        first_byte = f.read(1)
+    if first_byte == b"{":
+        content = dest.read_text(encoding="utf-8", errors="replace")[:200]
+        dest.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"Erreur API SuperPDP (facture {invoice_id}, format {fmt}): {content}"
+        )
+
+
 def update_pa_validation(invoice_num: str, validated: bool) -> None:
     """
     Met à jour le champ pa_validation d'une facture en base.
