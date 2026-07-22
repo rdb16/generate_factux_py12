@@ -16,7 +16,7 @@ from utils.facturx_generator import generate_facturx_xml
 from utils.pdf_generator import generate_invoice_pdf
 from utils.invoice_calc import calculate_line_totals, calculate_invoice_totals
 from utils.db import get_db_connection, db_cursor, db_connection
-from utils.super_pdp import get_pdp_token, get_cached_pdp_token, send_facturx_to_pdp, update_invoice_sent_ok, update_invoice_sent_error, get_invoice_events, check_validation, update_pa_validation
+from utils.super_pdp import get_pdp_token, get_cached_pdp_token, send_facturx_to_pdp, update_invoice_sent_ok, update_invoice_sent_error, get_invoice_events, check_validation, update_pa_validation, list_incoming_invoices, download_invoice_file
 from facturx import generate_from_binary
 
 
@@ -240,12 +240,33 @@ def insert_sent_invoice(conn, invoice_num: str, company_name: str, company_siret
     cursor.close()
 
 
+def insert_incoming_invoice(conn, invoice_num: str, company_name: str, company_siret: str,
+                            recipient_siret: str, xml_content: str, pdf_path: str,
+                            invoice_date: str, total_ttc=None) -> bool:
+    """Insère une facture reçue dans incoming_invoices (dans la transaction en cours).
+
+    Retourne True si la ligne a été insérée, False si le numéro existait déjà.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO incoming_invoices
+           (invoice_num, company_name, company_siret, recipient_siret, xml_facture, pdf_path, invoice_date, total_ttc)
+           VALUES (%s, %s, %s, %s, %s::xml, %s, %s, %s)
+           ON CONFLICT (invoice_num) DO NOTHING""",
+        (invoice_num, company_name, company_siret, recipient_siret, xml_content, pdf_path, invoice_date, total_ttc),
+    )
+    inserted = cursor.rowcount > 0
+    cursor.close()
+    return inserted
+
+
 def ensure_storage_directories(config: dict) -> None:
     """Crée les répertoires de stockage s'ils n'existent pas."""
     xml_storage = config.get('xml_storage', './data/factures-xml')
     pdf_storage = config.get('pdf_storage', './data/factures-pdf')
+    incoming_storage = config.get('incoming_storage', './data/incoming-invoices')
 
-    for storage_path in [xml_storage, pdf_storage]:
+    for storage_path in [xml_storage, pdf_storage, incoming_storage]:
         path = Path(storage_path)
         if not path.exists():
             path.mkdir(parents=True, exist_ok=True)
@@ -980,6 +1001,107 @@ def check_validations():
         'checked': checked,
         'validated': validated_count,
         'not_validated': not_validated_count,
+    })
+
+
+def _legal_id_value(legal_id) -> str:
+    """Extrait la valeur d'un legal_registration_identifier SuperPDP (objet ou chaîne)."""
+    if isinstance(legal_id, dict):
+        return str(legal_id.get('value', '') or '')
+    return str(legal_id or '')
+
+
+@app.route('/api/dashboard/fetch-invoices', methods=['POST'])
+def fetch_incoming_invoices():
+    """Récupère les factures reçues depuis SuperPDP et les insère en base."""
+    if CONFIG.get('is_db_pg') is not True or CONFIG.get('super_pdp_as_pa') is not True:
+        return jsonify({'error': 'Fonctionnalité non activée'}), 403
+
+    try:
+        with db_cursor() as (_conn, cursor):
+            cursor.execute("SELECT invoice_num FROM incoming_invoices")
+            known_nums = {row[0] for row in cursor.fetchall()}
+    except Exception as e:
+        print(f"[ERROR] fetch-invoices SELECT: {e}")
+        return jsonify({'error': str(e)}), 500
+
+    try:
+        overviews = list_incoming_invoices()
+    except Exception as e:
+        print(f"[ERROR] fetch-invoices LIST: {e}")
+        return jsonify({'error': str(e)}), 502
+
+    now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    _log_pa(f"[{now_ts}] FETCH-INVOICES — {len(overviews)} facture(s) reçue(s) chez SuperPDP")
+
+    incoming_storage = Path(CONFIG.get('incoming_storage', './data/incoming-invoices'))
+    incoming_storage.mkdir(parents=True, exist_ok=True)
+    emitter_siret = current_emitter()['siret']
+
+    inserted = 0
+    skipped = 0
+    errors = 0
+
+    for overview in overviews:
+        pa_id = overview.get('id')
+        number = (overview.get('en_invoice') or {}).get('number', '')
+        if number and number in known_nums:
+            skipped += 1
+            continue
+
+        try:
+            detail = get_invoice_events(pa_id)
+            en_invoice = detail.get('en_invoice') or {}
+            number = en_invoice.get('number') or number
+            if not number:
+                raise ValueError(f"Facture SuperPDP {pa_id} sans numéro")
+            if number in known_nums:
+                skipped += 1
+                continue
+
+            seller = en_invoice.get('seller') or {}
+            buyer = en_invoice.get('buyer') or {}
+            totals = en_invoice.get('totals') or {}
+
+            company_name = seller.get('name', '')
+            company_siret = _legal_id_value(seller.get('legal_registration_identifier'))
+            recipient_siret = _legal_id_value(buyer.get('legal_registration_identifier')) or emitter_siret
+            invoice_date = en_invoice.get('issue_date')
+            total_ttc = totals.get('total_with_vat')
+
+            safe_num = re.sub(r'[^A-Za-z0-9._-]', '_', number)
+            pdf_path = incoming_storage / f"facture-{safe_num}.pdf"
+            xml_path = incoming_storage / f"facturx-{safe_num}.xml"
+
+            download_invoice_file(pa_id, 'factur-x', str(pdf_path))
+            download_invoice_file(pa_id, 'cii', str(xml_path))
+            xml_content = xml_path.read_text(encoding='utf-8')
+
+            with db_connection() as conn:
+                was_inserted = insert_incoming_invoice(
+                    conn, number, company_name, company_siret, recipient_siret,
+                    xml_content, str(pdf_path), invoice_date, total_ttc,
+                )
+                conn.commit()
+
+            if was_inserted:
+                known_nums.add(number)
+                inserted += 1
+            else:
+                skipped += 1
+            now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _log_pa(f"[{now_ts}] FETCH  {number} (pa_id={pa_id}) — {'INSÉRÉE' if was_inserted else 'DÉJÀ EN BASE'} | fournisseur: {company_name}")
+        except Exception as e:
+            errors += 1
+            now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _log_pa(f"[{now_ts}] FETCH  pa_id={pa_id} — ERREUR: {e}")
+            print(f"[WARNING] fetch-invoices pa_id={pa_id}: {e}")
+
+    return jsonify({
+        'fetched': len(overviews),
+        'inserted': inserted,
+        'skipped': skipped,
+        'errors': errors,
     })
 
 
