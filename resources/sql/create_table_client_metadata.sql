@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS client_metadata (
     recipient_name      VARCHAR(255)             NOT NULL,
     cie_legal_form      VARCHAR(20),
     recipient_siret     VARCHAR(14)              NOT NULL UNIQUE,
-    recipient_pepol     VARCHAR(14)              NOT NULL UNIQUE,
+    recipient_pepol     VARCHAR(32)              NOT NULL UNIQUE,
     recipient_vat_number VARCHAR(20),
     recipient_address   VARCHAR(500),
     recipient_postal_code VARCHAR(10),
