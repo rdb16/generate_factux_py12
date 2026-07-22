@@ -1011,6 +1011,22 @@ def _legal_id_value(legal_id) -> str:
     return str(legal_id or '')
 
 
+def _resolve_recipient_siret(buyer_legal_id: str) -> str:
+    """Résout l'identifiant acheteur d'une facture reçue vers le SIRET d'un émetteur connu.
+
+    Le XML Factur-X porte le SIREN de l'acheteur (schemeID 0002, 9 chiffres) ;
+    le dashboard filtre par SIRET (14 chiffres). On rapproche donc l'identifiant
+    du SIREN ou du SIRET des émetteurs configurés.
+    """
+    if not buyer_legal_id:
+        return current_emitter()['siret']
+    for entry in EMITTERS.values():
+        emitter = entry['emitter']
+        if buyer_legal_id in (emitter.get('siren'), emitter.get('siret')):
+            return emitter['siret']
+    return buyer_legal_id
+
+
 @app.route('/api/dashboard/fetch-invoices', methods=['POST'])
 def fetch_incoming_invoices():
     """Récupère les factures reçues depuis SuperPDP et les insère en base."""
@@ -1036,7 +1052,6 @@ def fetch_incoming_invoices():
 
     incoming_storage = Path(CONFIG.get('incoming_storage', './data/incoming-invoices'))
     incoming_storage.mkdir(parents=True, exist_ok=True)
-    emitter_siret = current_emitter()['siret']
 
     inserted = 0
     skipped = 0
@@ -1065,7 +1080,7 @@ def fetch_incoming_invoices():
 
             company_name = seller.get('name', '')
             company_siret = _legal_id_value(seller.get('legal_registration_identifier'))
-            recipient_siret = _legal_id_value(buyer.get('legal_registration_identifier')) or emitter_siret
+            recipient_siret = _resolve_recipient_siret(_legal_id_value(buyer.get('legal_registration_identifier')))
             invoice_date = en_invoice.get('issue_date')
             total_ttc = totals.get('total_with_vat')
 
