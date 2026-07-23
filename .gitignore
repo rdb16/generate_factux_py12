@@ -26,3 +26,6 @@ data/
 
 # Captures d'écran à la racine (peuvent contenir des secrets OAuth)
 /*.png
+
+# Fichiers système macOS
+.DS_Store
