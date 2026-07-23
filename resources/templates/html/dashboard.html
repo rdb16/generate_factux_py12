@@ -3,7 +3,7 @@
 {% block title %}Dashboard Facturation{% endblock %}
 {% block body_max_width %}1300px{% endblock %}
 {% block header_title %}Dashboard Facturation{% endblock %}
-{% block header_extra %} - Gestion des factures &eacute;lectroniques{% endblock %}
+{% block header_extra %} - Gestion des documents comptables &eacute;lectroniques{% endblock %}
 {% block steps_wrapper %}{% endblock %}
 
 {% block extra_styles %}
@@ -487,19 +487,19 @@
                 <div class="kpi-grid">
                     <div class="kpi-card generated">
                         <div class="kpi-value" id="kpiGenerated">-</div>
-                        <div class="kpi-label">Factures g&eacute;n&eacute;r&eacute;es</div>
+                        <div class="kpi-label">Documents g&eacute;n&eacute;r&eacute;s</div>
                     </div>
                     <div class="kpi-card transferred">
                         <div class="kpi-value" id="kpiTransferred">-</div>
-                        <div class="kpi-label">Factures transf&eacute;r&eacute;es</div>
+                        <div class="kpi-label">Documents transf&eacute;r&eacute;s</div>
                     </div>
                     <div class="kpi-card received">
                         <div class="kpi-value" id="kpiReceived">-</div>
-                        <div class="kpi-label">Factures re&ccedil;ues</div>
+                        <div class="kpi-label">Documents re&ccedil;us</div>
                     </div>
                     <div class="kpi-card error">
                         <div class="kpi-value" id="kpiError">-</div>
-                        <div class="kpi-label">Factures en erreur</div>
+                        <div class="kpi-label">Documents en erreur</div>
                     </div>
                 </div>
 
@@ -524,8 +524,8 @@
                         <div class="invoice-count" id="invoiceCount"></div>
                     </div>
                     <div class="tabs">
-                        <button class="tab active" data-tab="sent" onclick="switchTab('sent')">Factures g&eacute;n&eacute;r&eacute;es</button>
-                        <button class="tab" data-tab="received" onclick="switchTab('received')">Factures re&ccedil;ues</button>
+                        <button class="tab active" data-tab="sent" onclick="switchTab('sent')">Documents g&eacute;n&eacute;r&eacute;s</button>
+                        <button class="tab" data-tab="received" onclick="switchTab('received')">Documents re&ccedil;us</button>
                     </div>
                     <table class="invoice-table">
                         <thead>
@@ -705,10 +705,10 @@
                     const total = data.total || 0;
                     const totalPages = data.total_pages || 1;
 
-                    countEl.textContent = total + ' facture(s) trouv\u00e9e(s)';
+                    countEl.textContent = total + ' document(s) trouv\u00e9(s)';
 
                     if (invoices.length === 0) {
-                        tbody.innerHTML = '<tr class="empty-row"><td colspan="' + colSpan + '">Aucune facture trouv\u00e9e</td></tr>';
+                        tbody.innerHTML = '<tr class="empty-row"><td colspan="' + colSpan + '">Aucun document trouv\u00e9</td></tr>';
                         return;
                     }
 
