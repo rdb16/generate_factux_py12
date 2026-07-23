@@ -455,7 +455,7 @@
                     <div class="db-status-left">
                         <div class="db-indicator" id="dbIndicator"></div>
                         <div class="db-info">
-                            <strong id="dbStatusText">Test en cours...</strong>
+                            <strong id="dbStatusText">DB-Connexion</strong>
                             &mdash; {{ db_host }}/<strong>{{ db_name }}</strong>
                             <span class="db-timestamp" id="dbTimestamp"></span>
                         </div>
@@ -558,14 +558,14 @@
                         V&eacute;rifier validations
                     </button>
                     <button class="btn-action green" onclick="fetchInvoices()" id="btnFetchInvoices">
-                        R&eacute;cup&eacute;rer des factures
+                        R&eacute;cup&eacute;rer les documents re&ccedil;us Super PDP
                     </button>
                     {% else %}
                     <button class="btn-action" disabled title="Fonctionnalit&eacute; &agrave; venir">
                         Envoyer vers PA
                     </button>
                     <button class="btn-action" disabled title="Fonctionnalit&eacute; &agrave; venir">
-                        R&eacute;cup&eacute;rer des factures
+                        R&eacute;cup&eacute;rer les documents re&ccedil;us Super PDP
                     </button>
                     {% endif %}
                     <button class="btn-action danger" onclick="shutdownServer()" style="margin-left: auto;">
@@ -619,28 +619,23 @@
             async function testConnection() {
                 const btn = document.getElementById('btnTestDb');
                 const indicator = document.getElementById('dbIndicator');
-                const statusText = document.getElementById('dbStatusText');
                 const timestamp = document.getElementById('dbTimestamp');
 
                 btn.disabled = true;
                 btn.textContent = 'Test en cours...';
                 indicator.className = 'db-indicator';
-                statusText.textContent = 'Test en cours...';
 
                 try {
                     const resp = await fetch('/api/db/test-connection');
                     const data = await resp.json();
                     if (data.connected) {
                         indicator.className = 'db-indicator connected';
-                        statusText.textContent = 'Connect\u00e9';
                     } else {
                         indicator.className = 'db-indicator disconnected';
-                        statusText.textContent = 'D\u00e9connect\u00e9';
                     }
                     timestamp.textContent = data.timestamp ? ('Dernier test : ' + data.timestamp) : '';
                 } catch (err) {
                     indicator.className = 'db-indicator disconnected';
-                    statusText.textContent = 'Erreur';
                     timestamp.textContent = '';
                 } finally {
                     btn.disabled = false;
@@ -852,7 +847,7 @@
                 } finally {
                     if (btn) {
                         btn.disabled = false;
-                        btn.textContent = 'Récupérer des factures';
+                        btn.textContent = 'Récupérer les documents reçus Super PDP';
                     }
                 }
             }
