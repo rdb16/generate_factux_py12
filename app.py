@@ -1019,6 +1019,34 @@ def check_validations():
     })
 
 
+@app.route('/invoice/incoming-pdf/<invoice_num>')
+def incoming_invoice_pdf(invoice_num):
+    """Sert le PDF d'une facture reçue (depuis incoming_invoices)."""
+    if CONFIG.get('is_db_pg') is not True:
+        return jsonify({'error': 'Base de données non activée'}), 404
+
+    try:
+        with db_cursor() as (_conn, cursor):
+            cursor.execute(
+                "SELECT pdf_path FROM incoming_invoices "
+                "WHERE invoice_num = %s AND recipient_siret = %s",
+                (invoice_num, current_emitter()['siret']),
+            )
+            row = cursor.fetchone()
+    except Exception as e:
+        print(f"[ERROR] incoming-pdf {invoice_num}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+    if not row:
+        return jsonify({'error': 'Facture introuvable'}), 404
+
+    pdf_path = Path(row[0]).resolve()
+    if not pdf_path.exists():
+        return jsonify({'error': f'Fichier PDF introuvable: {row[0]}'}), 404
+
+    return send_from_directory(pdf_path.parent, pdf_path.name, mimetype='application/pdf')
+
+
 def _legal_id_value(legal_id) -> str:
     """Extrait la valeur d'un legal_registration_identifier SuperPDP (objet ou chaîne)."""
     if isinstance(legal_id, dict):

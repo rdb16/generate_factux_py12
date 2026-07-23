@@ -736,7 +736,9 @@
                                 '<td>' + validationCell + '</td>' +
                                 '</tr>';
                         } else {
-                            html += '<tr>' +
+                            const pdfUrl = '/invoice/incoming-pdf/' + encodeURIComponent(inv.invoice_num);
+                            html += '<tr style="cursor:pointer" title="Ouvrir le PDF" ' +
+                                'onclick="window.open(\'' + pdfUrl + '\', \'_blank\')">' +
                                 '<td>' + escapeHtml(inv.invoice_num) + '</td>' +
                                 '<td>' + escapeHtml(inv.company_name) + '</td>' +
                                 '<td>' + escapeHtml(inv.invoice_date) + '</td>' +
