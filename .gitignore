@@ -20,3 +20,6 @@ facturx.pdf
 
 # Log files
 log/
+
+# Données générées / reçues (factures XML, PDF, tests)
+data/
