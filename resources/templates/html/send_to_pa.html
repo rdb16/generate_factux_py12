@@ -3,7 +3,7 @@
 {% block title %}Envoyer vers PA{% endblock %}
 {% block body_max_width %}1100px{% endblock %}
 {% block header_title %}Envoyer vers PA{% endblock %}
-{% block header_extra %} - Envoi group&eacute; de factures{% endblock %}
+{% block header_extra %} - Envoi group&eacute; de documents{% endblock %}
 {% block steps_wrapper %}{% endblock %}
 
 {% block extra_styles %}
@@ -194,8 +194,8 @@
 {% block content %}
             <div class="send-pa">
                 <div class="send-pa-header">
-                    <h2>Factures en attente d'envoi</h2>
-                    <span class="send-pa-count">{{ invoices|length }} facture(s) PENDING</span>
+                    <h2>Documents en attente d'envoi</h2>
+                    <span class="send-pa-count">{{ invoices|length }} document(s) PENDING</span>
                 </div>
 
                 <div class="table-wrapper">
@@ -232,7 +232,7 @@
                                 {% endfor %}
                             {% else %}
                                 <tr class="empty-row">
-                                    <td colspan="5">Aucune facture en attente d'envoi</td>
+                                    <td colspan="5">Aucun document en attente d'envoi</td>
                                 </tr>
                             {% endif %}
                         </tbody>
@@ -241,7 +241,7 @@
 
                 <div class="action-bar">
                     <button class="btn-action primary" id="btnSend" disabled>
-                        Envoyer les factures s&eacute;lectionn&eacute;es (<span id="sendCount">0</span>)
+                        Envoyer les documents s&eacute;lectionn&eacute;s (<span id="sendCount">0</span>)
                     </button>
                     <a href="/dashboard" class="btn-action secondary">
                         Retour au dashboard
@@ -350,7 +350,7 @@
                     resultsBody.innerHTML = '<div style="color:#c53030;padding:8px 0;">Erreur r\u00e9seau : ' + escapeHtml(err.message) + '</div>';
                 } finally {
                     updateCount();
-                    btnSend.innerHTML = 'Envoyer les factures s\u00e9lectionn\u00e9es (<span id="sendCount">' + getChecked().length + '</span>)';
+                    btnSend.innerHTML = 'Envoyer les documents s\u00e9lectionn\u00e9s (<span id="sendCount">' + getChecked().length + '</span>)';
                 }
             });
         </script>
