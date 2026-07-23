@@ -503,6 +503,14 @@
                                 >{{ invoice.type_label }}</span
                             >
                         </div>
+                        {% if invoice.preceding_invoice_number %}
+                        <div class="summary-item">
+                            <span class="label">Facture d'origine : </span>
+                            <span class="value"
+                                >{{ invoice.preceding_invoice_number }}{% if invoice.preceding_invoice_date_display %} ({{ invoice.preceding_invoice_date_display }}){% endif %}</span
+                            >
+                        </div>
+                        {% endif %}
                         <div class="summary-item">
                             <span class="label">Date : </span>
                             <span class="value" id="sum-issue-date"

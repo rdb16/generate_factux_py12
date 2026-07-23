@@ -332,6 +332,42 @@
                         </div>
                     </div>
 
+                    <div class="field-row" id="precedingInvoiceRow" style="display: none">
+                        <div class="field-group">
+                            <label for="preceding_invoice_number"
+                                >Facture d'origine (n&deg;)<span class="required"
+                                    >*</span
+                                ></label
+                            >
+                            <input
+                                type="text"
+                                name="preceding_invoice_number"
+                                id="preceding_invoice_number"
+                                placeholder="Ex : FAC-2026-07-0003"
+                            />
+                            <div
+                                class="field-error"
+                                data-field="preceding_invoice_number"
+                            ></div>
+                        </div>
+                        <div class="field-group">
+                            <label for="preceding_invoice_date"
+                                >Date de la facture d'origine<span class="required"
+                                    >*</span
+                                ></label
+                            >
+                            <input
+                                type="date"
+                                name="preceding_invoice_date"
+                                id="preceding_invoice_date"
+                            />
+                            <div
+                                class="field-error"
+                                data-field="preceding_invoice_date"
+                            ></div>
+                        </div>
+                    </div>
+
                     <div class="field-row">
                         <div class="field-group">
                             <label for="buyer_reference"
@@ -608,6 +644,22 @@
 
                 const changeBtn = document.getElementById("btnChangeClient");
                 const changeBar = document.getElementById("changeClientBar");
+
+                // Bloc "facture d'origine" visible uniquement pour un avoir (381)
+                const typeCodeSelect = document.getElementById("type_code");
+                const precedingRow = document.getElementById("precedingInvoiceRow");
+                function togglePrecedingRow() {
+                    const isAvoir = typeCodeSelect.value === "381";
+                    precedingRow.style.display = isAvoir ? "" : "none";
+                    document.getElementById("preceding_invoice_number").required = isAvoir;
+                    document.getElementById("preceding_invoice_date").required = isAvoir;
+                    if (!isAvoir) {
+                        document.getElementById("preceding_invoice_number").value = "";
+                        document.getElementById("preceding_invoice_date").value = "";
+                    }
+                }
+                typeCodeSelect.addEventListener("change", togglePrecedingRow);
+                togglePrecedingRow();
 
                 const fieldMapping = {
                     recipient_name: "recipient_name",

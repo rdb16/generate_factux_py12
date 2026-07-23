@@ -476,6 +476,20 @@ def validate_step1(data: dict, auto_numbering: bool = False) -> list[dict]:
     if not data.get('recipient_country_code'):
         errors.append({'field': 'recipient_country_code', 'message': 'Le pays du client est obligatoire'})
 
+    # Avoir (TypeCode 381) : référence à la facture d'origine obligatoire
+    # (BT-25/BT-26, art. 272-1 et 242 nonies A annexe II du CGI, règle BR-FR-04)
+    if data.get('type_code') == '381':
+        if not data.get('preceding_invoice_number', '').strip():
+            errors.append({
+                'field': 'preceding_invoice_number',
+                'message': "Le numéro de la facture d'origine est obligatoire pour un avoir"
+            })
+        if not data.get('preceding_invoice_date'):
+            errors.append({
+                'field': 'preceding_invoice_date',
+                'message': "La date de la facture d'origine est obligatoire pour un avoir"
+            })
+
     # BR-CO-25 : si montant dû > 0, BT-9 (date échéance) ou BT-20 (conditions paiement) requis
     if not data.get('due_date') and not data.get('payment_terms', '').strip():
         errors.append({
@@ -716,6 +730,8 @@ def submit_step1():
         'currency_code': request.form.get('currency_code', 'EUR'),
         'issue_date': request.form.get('issue_date', ''),
         'due_date': request.form.get('due_date', ''),
+        'preceding_invoice_number': request.form.get('preceding_invoice_number', ''),
+        'preceding_invoice_date': request.form.get('preceding_invoice_date', ''),
         'buyer_reference': request.form.get('buyer_reference', ''),
         'purchase_order_reference': request.form.get('purchase_order_reference', ''),
         'payment_terms': request.form.get('payment_terms', ''),
@@ -1195,6 +1211,7 @@ def show_step2():
         'type_label': TYPE_LABELS.get(invoice_data['type_code'], 'Facture'),
         'issue_date_display': format_date_display(invoice_data['issue_date']),
         'due_date_display': format_date_display(invoice_data['due_date']),
+        'preceding_invoice_date_display': format_date_display(invoice_data.get('preceding_invoice_date', '')),
     }
 
     return render_template(
@@ -1402,6 +1419,8 @@ def generate_invoice():
             'currency_code': invoice_data.get('currency_code', 'EUR'),
             'issue_date': format_date_display(invoice_data['issue_date']),
             'due_date': format_date_display(invoice_data.get('due_date', '')),
+            'preceding_invoice_number': invoice_data.get('preceding_invoice_number', ''),
+            'preceding_invoice_date': format_date_display(invoice_data.get('preceding_invoice_date', '')),
             'payment_terms': invoice_data.get('payment_terms', ''),
             'recipient_name': invoice_data['recipient_name'],
             'recipient_siret': invoice_data['recipient_siret'],

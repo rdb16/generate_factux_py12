@@ -292,6 +292,12 @@
                             <span class="label">Type : </span>
                             <span class="value">{{ summary.type_label }}</span>
                         </div>
+                        {% if summary.preceding_invoice_number %}
+                        <div class="summary-item">
+                            <span class="label">Facture d'origine : </span>
+                            <span class="value">{{ summary.preceding_invoice_number }}{% if summary.preceding_invoice_date %} ({{ summary.preceding_invoice_date }}){% endif %}</span>
+                        </div>
+                        {% endif %}
                         <div class="summary-item">
                             <span class="label">Date : </span>
                             <span class="value">{{ summary.issue_date }}</span>
