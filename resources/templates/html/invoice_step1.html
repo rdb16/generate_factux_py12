@@ -332,6 +332,17 @@
                         </div>
                     </div>
 
+                    <div
+                        id="avoirWarning"
+                        style="display: none; margin: 0 0 16px; padding: 12px 16px; border-left: 4px solid #d97706; background: #fef3c7; color: #92400e; border-radius: 4px; font-size: 14px; line-height: 1.5"
+                    >
+                        <strong>Avoir&nbsp;:</strong> saisissez les montants en
+                        <strong>valeurs positives</strong>. Conform&eacute;ment &agrave; la
+                        norme <strong>EN&nbsp;16931</strong>, le sens &laquo;&nbsp;cr&eacute;dit&nbsp;&raquo;
+                        est port&eacute; par le type de document (code&nbsp;381), et non par un
+                        signe n&eacute;gatif.
+                    </div>
+
                     <div class="field-row" id="precedingInvoiceRow" style="display: none">
                         <div class="field-group">
                             <label for="preceding_invoice_number"
@@ -648,9 +659,11 @@
                 // Bloc "facture d'origine" visible uniquement pour un avoir (381)
                 const typeCodeSelect = document.getElementById("type_code");
                 const precedingRow = document.getElementById("precedingInvoiceRow");
+                const avoirWarning = document.getElementById("avoirWarning");
                 function togglePrecedingRow() {
                     const isAvoir = typeCodeSelect.value === "381";
                     precedingRow.style.display = isAvoir ? "" : "none";
+                    avoirWarning.style.display = isAvoir ? "" : "none";
                     document.getElementById("preceding_invoice_number").required = isAvoir;
                     document.getElementById("preceding_invoice_date").required = isAvoir;
                     if (!isAvoir) {
