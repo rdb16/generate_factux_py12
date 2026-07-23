@@ -128,7 +128,7 @@ def _add_note(parent, text: str, subject_code: str = None):
 
 def generate_facturx_xml(data: dict) -> str:
     """
-    Génère le XML Factur-X au profil BASIC.
+    Génère le XML Factur-X au profil EN 16931.
 
     Args:
         data: Dictionnaire contenant 'emitter', 'invoice', et 'lines'
@@ -402,6 +402,19 @@ def generate_facturx_xml(data: dict) -> str:
 
     due_payable = ET.SubElement(monetary_sum, _qname('ram', 'DuePayableAmount'))
     due_payable.text = _format_amount(invoice_totals['total_ttc'])
+
+    # Facture d'origine (BG-3 / BT-25, BT-26) — obligatoire pour un avoir
+    # (TypeCode 381) afin de rattacher l'avoir à la facture rectifiée.
+    # Placé après le récapitulatif monétaire, ordre imposé par le XSD CII.
+    if invoice.get('preceding_invoice_number'):
+        ref_doc = ET.SubElement(settlement, _qname('ram', 'InvoiceReferencedDocument'))
+        ref_id = ET.SubElement(ref_doc, _qname('ram', 'IssuerAssignedID'))
+        ref_id.text = invoice['preceding_invoice_number']
+        if invoice.get('preceding_invoice_date'):
+            ref_date = ET.SubElement(ref_doc, _qname('ram', 'FormattedIssueDateTime'))
+            ref_date_str = ET.SubElement(ref_date, _qname('qdt', 'DateTimeString'))
+            ref_date_str.set('format', '102')
+            ref_date_str.text = _format_date(invoice['preceding_invoice_date'])
 
     # Génération du XML formaté
     xml_string = ET.tostring(root, encoding='unicode')
