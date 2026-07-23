@@ -441,7 +441,7 @@
             <div class="dashboard">
                 <!-- Sélecteur d'émetteur -->
                 <div class="emitter-card">
-                    <label for="emitterSelect">&Eacute;metteur :</label>
+                    <label for="emitterSelect">Compte :</label>
                     <select id="emitterSelect" onchange="selectEmitter(this.value)">
                         {% for em in emitters %}
                         <option value="{{ em.id }}"{% if em.id == current_emitter_id %} selected{% endif %}>{{ em.label }}</option>
