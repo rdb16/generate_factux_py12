@@ -227,17 +227,26 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
 
     story = []
 
+    # Titre selon le type de document (UNTDID 1001)
+    doc_titles = {
+        '380': 'FACTURE',
+        '381': 'AVOIR',
+        '384': 'FACTURE RECTIFICATIVE',
+        '389': "FACTURE D'ACOMPTE",
+    }
+    doc_title = doc_titles.get(invoice.get('type_code', '380'), 'FACTURE')
+
     # En-tête avec logo et titre
     header_data = []
 
     if logo_path and Path(logo_path).exists():
         try:
             img = Image(logo_path, width=3*cm, height=3*cm, kind='proportional')
-            header_data.append([img, Paragraph('FACTURE', title_style)])
+            header_data.append([img, Paragraph(doc_title, title_style)])
         except Exception:
-            header_data.append(['', Paragraph('FACTURE', title_style)])
+            header_data.append(['', Paragraph(doc_title, title_style)])
     else:
-        header_data.append(['', Paragraph('FACTURE', title_style)])
+        header_data.append(['', Paragraph(doc_title, title_style)])
 
     header_table = Table(header_data, colWidths=[4*cm, 15*cm])
     header_table.setStyle(TableStyle([
@@ -285,6 +294,13 @@ def generate_invoice_pdf(data: dict, logo_path: str = None) -> bytes:
         ['Échéance', _format_date(invoice.get('due_date', ''))],
         ['Devise', invoice.get('currency_code', 'EUR')],
     ]
+
+    # Facture d'origine (avoir) : mention obligatoire (art. 242 nonies A annexe II CGI)
+    if invoice.get('preceding_invoice_number'):
+        ref_label = invoice['preceding_invoice_number']
+        if invoice.get('preceding_invoice_date'):
+            ref_label += f" du {_format_date(invoice['preceding_invoice_date'])}"
+        invoice_info_data.insert(1, ["Facture d'origine", ref_label])
 
     invoice_info_table = Table(invoice_info_data, colWidths=[5*cm, 8*cm])
     invoice_info_table.setStyle(TableStyle([
