@@ -1,6 +1,6 @@
 {% extends "html/base.html" %}
 
-{% block title %}Nouvelle facture - Informations{% endblock %}
+{% block title %}Nouveau document comptable - Informations{% endblock %}
 {% block body_max_width %}700px{% endblock %}
 {% block header_padding %}30px{% endblock %}
 {% block header_logo_size %}60px{% endblock %}
@@ -11,7 +11,7 @@
 
 {% block header_extra %} - SIRET : {{ emitter.siret }}{% endblock %}
 
-{% block header_title %}Nouvelle facture{% endblock %}
+{% block header_title %}Nouveau document comptable{% endblock %}
 
 {% block steps %}
                 <div class="step active">
@@ -212,12 +212,12 @@
 {% block content %}
             <form id="invoiceForm" autocomplete="off">
                 <div class="section">
-                    <div class="section-title">Informations de la facture</div>
+                    <div class="section-title">Informations du document comptable</div>
 
                     <div class="field-row">
                         <div class="field-group">
                             <label for="invoice_number"
-                                >Numero de facture{% if auto_numbering %}<span class="optional">(auto)</span>{% else %}<span class="required">*</span>{% endif %}</label
+                                >Numero du document{% if auto_numbering %}<span class="optional">(auto)</span>{% else %}<span class="required">*</span>{% endif %}</label
                             >
                             {% if auto_numbering %}
                             <input

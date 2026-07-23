@@ -1,8 +1,8 @@
 {% extends "html/base.html" %}
 
-{% block title %}Facture generee - Recapitulatif{% endblock %}
+{% block title %}Document comptable genere - Recapitulatif{% endblock %}
 
-{% block header_title %}Facture generee{% endblock %}
+{% block header_title %}Document comptable genere{% endblock %}
 
 {% block steps %}
                 <div class="step completed">
@@ -275,14 +275,14 @@
             <div class="success-banner">
                 <div class="icon">&#10003;</div>
                 <div class="text">
-                    <h3>Facture {{ summary.invoice_number }} generee avec succes</h3>
+                    <h3>Document comptable {{ summary.invoice_number }} genere avec succes</h3>
                     <p>Les fichiers PDF et XML ont ete crees et sauvegardes.</p>
                 </div>
             </div>
 
             <div class="summary">
                 <div class="summary-section">
-                    <h3>Facture</h3>
+                    <h3>Document comptable</h3>
                     <div class="summary-grid">
                         <div class="summary-item">
                             <span class="label">Numero : </span>
@@ -438,7 +438,7 @@
                             {% if summary.db_status == 'ok' %}
                             <span class="op-icon ok">&#10003;</span>
                             <span class="op-label">Base de donnees :</span>
-                            <span class="op-value">Facture enregistree</span>
+                            <span class="op-value">Document enregistre</span>
                             {% elif summary.db_status == 'erreur' %}
                             <span class="op-icon err">&#10007;</span>
                             <span class="op-label">Base de donnees :</span>
@@ -468,7 +468,7 @@
                         Retour au dashboard
                     </a>
                     <a href="/invoice/new" class="btn btn-secondary">
-                        Nouvelle facture
+                        Nouveau document comptable
                     </a>
                     <a href="/invoice/download-pdf" class="btn btn-primary">
                         Telecharger le PDF

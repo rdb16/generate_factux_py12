@@ -1,6 +1,6 @@
 {% extends "html/base.html" %}
 
-{% block title %}Nouvelle facture - Lignes{% endblock %}
+{% block title %}Nouveau document comptable - Lignes{% endblock %}
 
 {% block steps %}
                 <div class="step completed">
@@ -482,7 +482,7 @@
             <div class="summary">
                 <div class="summary-section">
                     <h3>
-                        Facture
+                        Document comptable
                         <button
                             class="btn-modify"
                             onclick="window.location.href = '/invoice/step1'"
@@ -817,7 +817,7 @@
                 >
                     <span id="submitWrapper" style="display: inline-block; cursor: not-allowed;" title="Une ligne est obligatoire !!!">
                         <button type="submit" class="btn btn-primary" id="btnSubmit" disabled style="pointer-events: none; opacity: 0.5;">
-                            Generer la facture Factur-X
+                            Generer le document Factur-X
                         </button>
                     </span>
                 </div>
@@ -1071,7 +1071,7 @@
                     btn.closest(".line-wrapper").remove();
                     updateTotals();
                 } else {
-                    alert("La facture doit contenir au moins une ligne");
+                    alert("Le document doit contenir au moins une ligne");
                 }
             }
 
