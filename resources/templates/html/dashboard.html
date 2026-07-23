@@ -713,7 +713,7 @@
                     }
 
                     let html = '';
-                    invoices.forEach(function(inv) {
+                    invoices.forEach(function(inv, idx) {
                         const amount = inv.total_ttc !== null && inv.total_ttc !== undefined
                             ? parseFloat(inv.total_ttc).toFixed(2) + ' EUR'
                             : '-';
@@ -736,9 +736,8 @@
                                 '<td>' + validationCell + '</td>' +
                                 '</tr>';
                         } else {
-                            const pdfUrl = '/invoice/incoming-pdf/' + encodeURIComponent(inv.invoice_num);
-                            html += '<tr style="cursor:pointer" title="Ouvrir le PDF" ' +
-                                'onclick="window.open(\'' + pdfUrl + '\', \'_blank\')">' +
+                            html += '<tr class="received-row" data-idx="' + idx +
+                                '" style="cursor:pointer" title="Ouvrir le PDF">' +
                                 '<td>' + escapeHtml(inv.invoice_num) + '</td>' +
                                 '<td>' + escapeHtml(inv.company_name) + '</td>' +
                                 '<td>' + escapeHtml(inv.invoice_date) + '</td>' +
@@ -747,6 +746,16 @@
                         }
                     });
                     tbody.innerHTML = html;
+                    // Handler attaché après coup : le numéro n'est jamais
+                    // interpolé dans du HTML (données venant de la PDP)
+                    tbody.querySelectorAll('tr.received-row').forEach(function(tr) {
+                        tr.addEventListener('click', function() {
+                            const inv = invoices[parseInt(tr.dataset.idx, 10)];
+                            if (inv) {
+                                window.open('/invoice/incoming-pdf/' + encodeURIComponent(inv.invoice_num), '_blank');
+                            }
+                        });
+                    });
                     renderPager(totalPages);
                 } catch (err) {
                     console.error('Erreur chargement factures:', err);
