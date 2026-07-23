@@ -201,14 +201,17 @@ def is_auto_numbering() -> bool:
     return CONFIG.get('is_db_pg') is True and CONFIG.get('is_num_facturx_auto') is True
 
 
-def get_next_invoice_number(conn) -> str:
-    """Calcule le prochain numéro de facture, séquencé par mois.
+def get_next_invoice_number(conn, type_code: str = '380') -> str:
+    """Calcule le prochain numéro de document, séquencé par mois et par type.
 
-    Le compteur repart à 0001 à chaque nouveau mois ; sinon il prend
-    la plus grande séquence déjà utilisée dans le mois courant + 1.
+    Préfixe 'AVO' pour un avoir (type 381), 'FAC' sinon, afin de distinguer
+    les avoirs. Le compteur repart à 0001 à chaque nouveau mois et pour chaque
+    préfixe ; sinon il prend la plus grande séquence déjà utilisée dans le mois
+    courant pour ce préfixe + 1.
     """
     now = datetime.now()
-    prefix = f"FAC-{now.year}-{now.month:02d}-"
+    base = 'AVO' if type_code == '381' else 'FAC'
+    prefix = f"{base}-{now.year}-{now.month:02d}-"
 
     cursor = conn.cursor()
     cursor.execute(
@@ -748,19 +751,16 @@ def submit_step1():
 
     auto_num = is_auto_numbering()
 
-    # Si numérotation auto, utiliser le numéro stocké en session (non modifiable côté client)
+    # Numérotation auto : le numéro (et son préfixe FAC/AVO) est calculé
+    # côté serveur d'après le type, jamais pris du formulaire client.
     if auto_num:
-        stored_num = session.get('next_invoice_number')
-        if stored_num:
-            data['invoice_number'] = stored_num
-        else:
-            try:
-                with db_cursor() as (conn, _cursor):
-                    data['invoice_number'] = get_next_invoice_number(conn)
-            except Exception as e:
-                return jsonify({'success': False, 'errors': [
-                    {'field': 'invoice_number', 'message': f'Erreur numérotation auto: {e}'}
-                ]}), 500
+        try:
+            with db_cursor() as (conn, _cursor):
+                data['invoice_number'] = get_next_invoice_number(conn, data.get('type_code', '380'))
+        except Exception as e:
+            return jsonify({'success': False, 'errors': [
+                {'field': 'invoice_number', 'message': f'Erreur numérotation auto: {e}'}
+            ]}), 500
 
     errors = validate_step1(data, auto_numbering=auto_num)
 
@@ -1182,6 +1182,23 @@ def fetch_incoming_invoices():
     })
 
 
+@app.route('/api/next-number')
+def api_next_number():
+    """Prochain numéro auto pour un type de document (prévisualisation step1)."""
+    if not is_auto_numbering():
+        return jsonify({'error': 'Numérotation auto désactivée'}), 404
+
+    type_code = request.args.get('type_code', '380')
+    try:
+        with db_cursor() as (conn, _cursor):
+            number = get_next_invoice_number(conn, type_code)
+        session['next_invoice_number'] = number
+        return jsonify({'next_invoice_number': number})
+    except Exception as e:
+        print(f"[ERROR] api_next_number: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/clients/count')
 def count_clients():
     """Retourne le nombre de clients en base (requiert is_db_pg=True)."""
@@ -1283,7 +1300,7 @@ def generate_invoice():
                     cursor = conn.cursor()
                     cursor.execute("LOCK TABLE sent_invoices IN EXCLUSIVE MODE")
                     cursor.close()
-                    invoice_data['invoice_number'] = get_next_invoice_number(conn)
+                    invoice_data['invoice_number'] = get_next_invoice_number(conn, invoice_data.get('type_code', '380'))
                     session['invoice_data'] = invoice_data
 
                     # Génération dans la transaction (le lock empêche les doublons)

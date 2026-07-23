@@ -660,6 +660,23 @@
                 const typeCodeSelect = document.getElementById("type_code");
                 const precedingRow = document.getElementById("precedingInvoiceRow");
                 const avoirWarning = document.getElementById("avoirWarning");
+                const invoiceNumberInput = document.getElementById("invoice_number");
+                // Prévisualise le numéro (préfixe FAC/AVO) selon le type, en mode auto
+                async function refreshAutoNumber() {
+                    if (!invoiceNumberInput || !invoiceNumberInput.readOnly) return;
+                    try {
+                        const resp = await fetch(
+                            "/api/next-number?type_code=" + encodeURIComponent(typeCodeSelect.value)
+                        );
+                        if (!resp.ok) return;
+                        const data = await resp.json();
+                        if (data.next_invoice_number) {
+                            invoiceNumberInput.value = data.next_invoice_number;
+                        }
+                    } catch (err) {
+                        console.error("Erreur prévisualisation numéro:", err);
+                    }
+                }
                 function togglePrecedingRow() {
                     const isAvoir = typeCodeSelect.value === "381";
                     precedingRow.style.display = isAvoir ? "" : "none";
@@ -671,7 +688,10 @@
                         document.getElementById("preceding_invoice_date").value = "";
                     }
                 }
-                typeCodeSelect.addEventListener("change", togglePrecedingRow);
+                typeCodeSelect.addEventListener("change", function () {
+                    togglePrecedingRow();
+                    refreshAutoNumber();
+                });
                 togglePrecedingRow();
 
                 const fieldMapping = {
