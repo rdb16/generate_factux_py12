@@ -5,6 +5,7 @@ Application Flask pour générer des factures au format Factur-X.
 import json
 import math
 import os
+import secrets
 import sys
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
@@ -242,18 +243,19 @@ def insert_sent_invoice(conn, invoice_num: str, company_name: str, company_siret
 
 def insert_incoming_invoice(conn, invoice_num: str, company_name: str, company_siret: str,
                             recipient_siret: str, xml_content: str, pdf_path: str,
-                            invoice_date: str, total_ttc=None) -> bool:
+                            invoice_date: str, total_ttc=None, pa_id: int = None) -> bool:
     """Insère une facture reçue dans incoming_invoices (dans la transaction en cours).
 
-    Retourne True si la ligne a été insérée, False si le numéro existait déjà.
+    Retourne True si la ligne a été insérée, False si elle existait déjà
+    (même couple fournisseur/numéro, ou même pa_id SuperPDP).
     """
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO incoming_invoices
-           (invoice_num, company_name, company_siret, recipient_siret, xml_facture, pdf_path, invoice_date, total_ttc)
-           VALUES (%s, %s, %s, %s, %s::xml, %s, %s, %s)
-           ON CONFLICT (invoice_num) DO NOTHING""",
-        (invoice_num, company_name, company_siret, recipient_siret, xml_content, pdf_path, invoice_date, total_ttc),
+           (invoice_num, company_name, company_siret, recipient_siret, pa_id, xml_facture, pdf_path, invoice_date, total_ttc)
+           VALUES (%s, %s, %s, %s, %s, %s::xml, %s, %s, %s)
+           ON CONFLICT DO NOTHING""",
+        (invoice_num, company_name, company_siret, recipient_siret, pa_id, xml_content, pdf_path, invoice_date, total_ttc),
     )
     inserted = cursor.rowcount > 0
     cursor.close()
@@ -439,7 +441,10 @@ def current_logo_path() -> str:
     return LOGO_PATH
 
 app = Flask(__name__, template_folder='resources/templates', static_folder='resources', static_url_path='/static')
-app.secret_key = 'facturx-secret-key-change-in-production'
+# Clé de session depuis .env.local (FLASK_SECRET_KEY) ; à défaut, clé
+# aléatoire — les sessions ne survivent alors pas à un redémarrage.
+load_env_file()
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 
 TYPE_LABELS = {
     '380': 'Facture',
@@ -614,15 +619,14 @@ def dashboard():
     db_host = os.environ.get('DB_URL', 'localhost')
     db_name = os.environ.get('DB_NAME', 'k_factur_x')
 
-    # Token OAuth2 SuperPDP
-    session['OAUTH_TOKEN'] = None
+    # Token OAuth2 SuperPDP (jamais stocké en session : le cookie Flask
+    # est lisible côté client et limité à 4 Ko)
     pdp_token_error = None
     pdp_token_validity = None
 
     if CONFIG.get('super_pdp_as_pa') is True:
         try:
             token_response = get_pdp_token(current_pdp_suffix())
-            session['OAUTH_TOKEN'] = token_response['access_token']
             expires_in = token_response.get('expires_in', 0)
             expiry_time = datetime.now() + timedelta(seconds=int(expires_in))
             pdp_token_validity = expiry_time.strftime("%H:%M:%S")
@@ -1078,8 +1082,8 @@ def fetch_incoming_invoices():
 
     try:
         with db_cursor() as (_conn, cursor):
-            cursor.execute("SELECT invoice_num FROM incoming_invoices")
-            known_nums = {row[0] for row in cursor.fetchall()}
+            cursor.execute("SELECT pa_id FROM incoming_invoices WHERE pa_id IS NOT NULL")
+            known_pa_ids = {row[0] for row in cursor.fetchall()}
     except Exception as e:
         print(f"[ERROR] fetch-invoices SELECT: {e}")
         return jsonify({'error': str(e)}), 500
@@ -1103,20 +1107,16 @@ def fetch_incoming_invoices():
 
     for overview in overviews:
         pa_id = overview.get('id')
-        number = (overview.get('en_invoice') or {}).get('number', '')
-        if number and number in known_nums:
+        if pa_id in known_pa_ids:
             skipped += 1
             continue
 
         try:
             detail = get_invoice_events(pa_id, pdp_suffix)
             en_invoice = detail.get('en_invoice') or {}
-            number = en_invoice.get('number') or number
+            number = en_invoice.get('number') or (overview.get('en_invoice') or {}).get('number', '')
             if not number:
                 raise ValueError(f"Facture SuperPDP {pa_id} sans numéro")
-            if number in known_nums:
-                skipped += 1
-                continue
 
             seller = en_invoice.get('seller') or {}
             buyer = en_invoice.get('buyer') or {}
@@ -1128,9 +1128,11 @@ def fetch_incoming_invoices():
             invoice_date = en_invoice.get('issue_date')
             total_ttc = totals.get('total_with_vat')
 
+            # Préfixe fournisseur : deux fournisseurs peuvent émettre le même numéro
             safe_num = re.sub(r'[^A-Za-z0-9._-]', '_', number)
-            pdf_path = incoming_storage / f"facture-{safe_num}.pdf"
-            xml_path = incoming_storage / f"facturx-{safe_num}.xml"
+            file_prefix = f"{company_siret or 'inconnu'}-{safe_num}"
+            pdf_path = incoming_storage / f"facture-{file_prefix}.pdf"
+            xml_path = incoming_storage / f"facturx-{file_prefix}.xml"
 
             download_invoice_file(pa_id, 'factur-x', str(pdf_path), pdp_suffix)
             download_invoice_file(pa_id, 'cii', str(xml_path), pdp_suffix)
@@ -1139,12 +1141,12 @@ def fetch_incoming_invoices():
             with db_connection() as conn:
                 was_inserted = insert_incoming_invoice(
                     conn, number, company_name, company_siret, recipient_siret,
-                    xml_content, str(pdf_path), invoice_date, total_ttc,
+                    xml_content, str(pdf_path), invoice_date, total_ttc, pa_id,
                 )
                 conn.commit()
 
             if was_inserted:
-                known_nums.add(number)
+                known_pa_ids.add(pa_id)
                 inserted += 1
             else:
                 skipped += 1

@@ -2,15 +2,18 @@
 -- Factures reçues depuis la plateforme agréée
 
 CREATE TABLE IF NOT EXISTS incoming_invoices (
-    invoice_num     VARCHAR(50)              PRIMARY KEY,
+    invoice_num     VARCHAR(50)              NOT NULL,
     company_name    VARCHAR(255)             NOT NULL,
     company_siret   VARCHAR(14)              NOT NULL,
     recipient_siret VARCHAR(14)              DEFAULT NULL,
+    pa_id           BIGINT                   UNIQUE,
     xml_facture     XML                      NOT NULL,
     pdf_path        VARCHAR(500)             NOT NULL,
     invoice_date    DATE                     NOT NULL,
     total_ttc       NUMERIC(12,2)           NOT NULL,
-    received_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    received_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    -- Un numéro de facture n'est unique que par fournisseur
+    PRIMARY KEY (company_siret, invoice_num)
 );
 
 CREATE INDEX IF NOT EXISTS idx_incoming_invoices_company_name
