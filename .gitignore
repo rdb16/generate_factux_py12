@@ -23,3 +23,6 @@ log/
 
 # Données générées / reçues (factures XML, PDF, tests)
 data/
+
+# Captures d'écran à la racine (peuvent contenir des secrets OAuth)
+/*.png
